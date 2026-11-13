@@ -3,7 +3,13 @@ import { SUPABASE_URL, SUPABASE_KEY, LIMITE_RECONHECIMENTO, MARGEM_MINIMA } from
 import { carregarFaceApi, lerRosto, AMOSTRAS } from './face';
 import { getCache, setCache, getFila, setFila, getRejeitados, setRejeitados, getUltimaSync, setUltimaSync, diaSP, horaSP, type Rosto, type Item } from './store';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage } });
+// Toda chamada à internet tem tempo limite: sem isso, uma conexão ruim deixava a sincronização "pendurada" para sempre.
+const fetchComLimite: typeof fetch = (input, init) => {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 20_000);
+  return fetch(input, { ...init, signal: ctl.signal }).finally(() => clearTimeout(t));
+};
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage }, global: { fetch: fetchComLimite } });
 const app = document.getElementById('app')!;
 const CAMPOS = ['entrada', 'saida_almoco', 'retorno_almoco', 'saida'] as const;
 const TEXTO: Record<string, string> = {
@@ -17,6 +23,7 @@ const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let view: 'login' | 'principal' | 'config' = getCache() ? 'principal' : 'login';
 let sessaoExpirada = false;
 let sincronizando = false;
+let inicioSync = 0;
 let ultimoErroSync = '';
 let resultadoTimer: number | undefined;
 
@@ -60,12 +67,15 @@ function registrarLocal(desc: number[]) {
 
 // ---------- sincronização ----------
 async function sincronizar(forcar = false): Promise<boolean> {
-  if (sincronizando) return false;
-  if (!navigator.onLine && !forcar) return false;
-  sincronizando = true; atualizarStatus();
+  if (sincronizando && Date.now() - inicioSync < 60_000) return false;   // uma sincronização travada por mais de 1 min é descartada
+  sincronizando = true; inicioSync = Date.now(); atualizarStatus();
   try {
-    const { data: s } = await supabase.auth.getSession();
-    if (!s.session) { sessaoExpirada = true; throw new Error('Entre novamente para sincronizar (precisa de internet).'); }
+    let { data: s, error: se } = await supabase.auth.getSession();
+    if (!s.session) { const r = await supabase.auth.refreshSession(); s = r.data as any; se = r.error; }
+    if (!s.session) {
+      if (se && /fetch|network|timeout|abort|load failed/i.test(se.message || '')) throw new Error('Sem conexão com o servidor.');
+      sessaoExpirada = true; throw new Error('Entre novamente para sincronizar (precisa de internet).');
+    }
     sessaoExpirada = false;
 
     // 1) envia as marcações guardadas
@@ -126,7 +136,7 @@ function atualizarStatus() {
   const rod = $('rodape');
   if (rod) {
     const u = getUltimaSync();
-    rod.textContent = u ? `Última sincronização: ${horaSP(Date.parse(u))}` : 'Ainda não sincronizado';
+    rod.textContent = (u ? `Última sincronização: ${horaSP(Date.parse(u))}` : 'Ainda não sincronizado') + (ultimoErroSync && getFila().length ? ` · ${ultimoErroSync}` : '');
   }
 }
 
@@ -225,6 +235,30 @@ function renderConfig() {
 }
 
 // ---------- câmera ----------
+// Câmera "quente": abrir a câmera no Android leva 1-2 s. Mantemos o fluxo aberto por alguns minutos depois de usar
+// (e abrimos já ao primeiro toque na tela), então a próxima pessoa vê a câmera na hora.
+let streamQuente: MediaStream | null = null;
+let timerCamera: number | undefined;
+async function obterStream(): Promise<MediaStream> {
+  if (streamQuente && streamQuente.getVideoTracks().some((t) => t.readyState === 'live')) return streamQuente;
+  streamQuente = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+  return streamQuente;
+}
+function dormirCamera(ms = 180_000) {
+  clearTimeout(timerCamera);
+  timerCamera = window.setTimeout(() => { streamQuente?.getTracks().forEach((t) => t.stop()); streamQuente = null; }, ms);
+}
+function aquecerCamera() { obterStream().then(() => dormirCamera()).catch(() => {}); }
+document.addEventListener('pointerdown', () => { if (view === 'principal') aquecerCamera(); }, { passive: true });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { clearTimeout(timerCamera); streamQuente?.getTracks().forEach((t) => t.stop()); streamQuente = null; } else if (view === 'principal') aquecerCamera(); });
+
+/** Leitura confiável o bastante para parar na 1ª amostra: bem perto de um rosto e longe do segundo colocado. */
+function leituraConfiavel(desc: number[]): boolean {
+  const c = getCache(); if (!c || !c.rostos.length) return false;
+  const ds = c.rostos.map((r) => euclid(r.descriptor, desc)).sort((a, b) => a - b);
+  return ds[0] < Math.min(0.45, LIMITE_RECONHECIMENTO) && (ds.length < 2 || ds[1] - ds[0] >= Math.max(0.08, MARGEM_MINIMA));
+}
+
 async function abrirCamera() {
   if (!getCache()?.rostos.length) { mostrarResultado('<h2>Sem rostos</h2><p>Conecte à internet para baixar os rostos cadastrados.</p>', true); return; }
   const tela = document.createElement('div');
@@ -237,10 +271,10 @@ async function abrirCamera() {
   document.body.appendChild(tela);
   const video = tela.querySelector('video')!;
   let parar = false, stream: MediaStream | null = null;
-  const fechar = () => { parar = true; stream?.getTracks().forEach((t) => t.stop()); tela.remove(); };
+  const fechar = () => { parar = true; tela.remove(); dormirCamera(); };   // não desliga a câmera: fica quente para a próxima pessoa
   $('fechar')!.onclick = fechar;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } }, audio: false });
+    stream = await obterStream();
     video.srcObject = stream; await video.play().catch(() => {});
     $('dica')!.textContent = 'Carregando o reconhecimento…';
     const desc = await lerRosto(video, (e: any) => {
@@ -249,7 +283,7 @@ async function abrirCamera() {
       if (d) { d.textContent = e.dica; d.className = 'dicabox' + (e.ok ? ' ok' : ''); }
       if (o) { o.setAttribute('stroke', e.ok ? '#4ade80' : 'rgba(255,255,255,.9)'); o.setAttribute('stroke-dasharray', e.ok ? '' : '10 8'); }
       if (p) p.innerHTML = e.fase === 'lendo' ? Array.from({ length: AMOSTRAS }, (_, i) => `<span class="${i < e.leituras ? 'on' : ''}"></span>`).join('') : '';
-    }, () => parar);
+    }, () => parar, 15000, leituraConfiavel);
     if (parar) return;
     fechar();
     const item = registrarLocal(desc);
@@ -268,10 +302,13 @@ async function abrirCamera() {
 // ---------- inicialização ----------
 if (view === 'login') renderLogin(); else renderPrincipal();
 setInterval(() => { if (view === 'principal') tickRelogio(); }, 1000);
-setInterval(() => { atualizarStatus(); if (navigator.onLine && (getFila().length || Date.now() - Date.parse(getUltimaSync() || '1970-01-01') > 5 * 60_000)) sincronizar(); }, 30_000);
-window.addEventListener('online', () => { atualizarStatus(); sincronizar(); });
+// Não confiamos só em navigator.onLine (no WebView do Android ele mente): com marcações na fila, tenta a cada 15 s.
+setInterval(() => { atualizarStatus(); if (getFila().length || Date.now() - Date.parse(getUltimaSync() || '1970-01-01') > 5 * 60_000) sincronizar(true); }, 15_000);
+window.addEventListener('online', () => { atualizarStatus(); sincronizar(true); });
+window.addEventListener('focus', () => { if (getFila().length) sincronizar(true); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && getFila().length) sincronizar(true); });
 window.addEventListener('offline', atualizarStatus);
-if (getCache()) { carregarFaceApi().catch(() => {}); sincronizar(); }
+if (getCache()) { carregarFaceApi().catch(() => {}); sincronizar(true); if (view === 'principal') aquecerCamera(); }
 
 // mantém a tela acesa
 (async function wake() {
