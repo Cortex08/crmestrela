@@ -468,9 +468,14 @@ function Gravar-Config {
     $url = Read-Host "URL do servidor do CRM [Enter = $urlPadrao]"
     if (-not $url) { $url = $urlPadrao }
     if ($url -notmatch '^https://') { throw 'A URL precisa comecar com https://' }
-    $sec = Read-Host 'Token deste PC (CRM > Acesso ao Computador > Computadores)' -AsSecureString
-    $token = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)).Trim()
-    if ($token.Length -lt 32) { throw 'Token invalido (confira se copiou inteiro).' }
+    # Campo visivel (o campo oculto mostra so 1 asterisco ao colar e confunde)
+    Escrever 'Cole o token deste PC (CRM > Acesso ao Computador > Computadores) e aperte Enter:' Cyan
+    $token = (Read-Host 'Token').Trim().Trim('"').Trim("'")
+    if ($token.Length -lt 32) { throw "Token invalido: so $($token.Length) caracteres (confira se copiou inteiro)." }
+    Escrever ("Token recebido: {0}...{1}  ({2} caracteres)" -f $token.Substring(0,4), $token.Substring($token.Length-4), $token.Length) Green
+    # limpa a tela para o token nao ficar exposto
+    Start-Sleep -Seconds 2
+    Clear-Host
     New-Item -ItemType Directory -Path $Dados -Force | Out-Null
     $json = (@{ url = $url; token = $token } | ConvertTo-Json -Compress)
     [IO.File]::WriteAllText($cfgPath, $json, (New-Object Text.UTF8Encoding $false))
