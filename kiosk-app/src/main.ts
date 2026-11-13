@@ -286,7 +286,16 @@ async function abrirCamera() {
     }, () => parar, 15000, leituraConfiavel);
     if (parar) return;
     fechar();
-    const item = registrarLocal(desc);
+    let item;
+    try { item = registrarLocal(desc); }
+    catch (e: any) {
+      // rosto desconhecido? pode ser alguém cadastrado agora há pouco: baixa a lista nova e tenta de novo, sem a pessoa refazer a leitura
+      if (!/não reconhecido|certeza/i.test(e?.message || '')) throw e;
+      mostrarResultado('<h2>Atualizando rostos…</h2><p>Conferindo se seu cadastro é novo.</p>');
+      const ok = await sincronizar(true);
+      if (!ok) throw e;
+      item = registrarLocal(desc);
+    }
     const offline = !navigator.onLine;
     mostrarResultado(`<h2>Olá, ${esc(item.nome)}!</h2><p>${TEXTO[item.campo]} às <b>${horaSP(Date.parse(item.momento))}</b></p>${offline ? '<div class="off">Sem internet: salvo no aparelho. Será enviado automaticamente quando a conexão voltar.</div>' : ''}`);
     atualizarStatus();
