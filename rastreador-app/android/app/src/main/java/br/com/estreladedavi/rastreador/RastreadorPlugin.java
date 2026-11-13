@@ -77,6 +77,7 @@ public class RastreadorPlugin extends Plugin {
         r.put("ultimoGps", a.getL("ultimo_gps", 0));
         r.put("erro", a.get("erro", ""));
         r.put("crash", a.get("crash", ""));
+        r.put("erroEnvio", a.get("erro_envio", ""));
         r.put("inicio", a.get("inicio", ""));
         r.put("fim", a.get("fim", ""));
         r.put("nome", a.get("nome", ""));

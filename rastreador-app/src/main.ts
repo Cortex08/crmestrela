@@ -3,7 +3,7 @@ import { SUPABASE_URL, SUPABASE_KEY } from './config';
 
 interface Status {
   ativo: boolean; rodando: boolean; naJanela: boolean; pendentes: number; ultimoEnvio: number; ultimoGps: number;
-  erro: string; crash: string; inicio: string; fim: string; nome: string;
+  erro: string; erroEnvio: string; crash: string; inicio: string; fim: string; nome: string;
   permLocal: boolean; permSegundoPlano: boolean; semRestricaoBateria: boolean;
 }
 interface Rast {
@@ -73,6 +73,7 @@ async function desenhar() {
   else if (!s.permSegundoPlano) avisos.push('Falta permitir a localização "O tempo todo" (toque em Abrir configurações > Permissões > Localização).');
   if (!s.semRestricaoBateria) avisos.push('A bateria está restringindo o app: toque em Abrir configurações > Bateria > Sem restrições.');
   if (s.erro) avisos.push(s.erro);
+  if (s.erroEnvio) avisos.push('Envio: ' + s.erroEnvio);
   if (s.crash) avisos.push('Última falha do app: ' + s.crash.slice(0, 300));
   app.innerHTML = `
     <h1>Celular Estrela</h1><p>${s.nome || ''} · rastreio somente no horário de trabalho.</p>
@@ -86,10 +87,8 @@ async function desenhar() {
     </div>
     ${avisos.map((a) => `<p class="warn">${a}</p>`).join('')}
     <p>O app continua funcionando sozinho com a tela apagada e volta a ligar quando o celular reinicia.</p>
-    <button id="cfg" class="sec">Abrir configurações do Android</button>
-    <button id="sair" class="sec">Sair (para o rastreio)</button>`;
+    <button id="cfg" class="sec">Abrir configurações do Android</button>`;
   document.getElementById('cfg')!.onclick = () => void Rastreador.abrirConfiguracoes();
-  document.getElementById('sair')!.onclick = async () => { await Rastreador.parar(); telaLogin(); };
 }
 
 void painel();

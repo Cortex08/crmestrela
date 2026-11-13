@@ -109,7 +109,8 @@ public class RastreioService extends Service {
     private void tick() {
         if (!arm.getB("ativo", false)) { stopSelf(); return; }
         long agora = System.currentTimeMillis();
-        if (agora - ultimaConfig > 5 * 60_000L) { ultimaConfig = agora; rede.execute(this::atualizarConfig); }
+        long esperaCfg = arm.get("inicio", null) == null ? 60_000L : 5 * 60_000L;   // sem horario ainda: tenta a cada minuto
+        if (agora - ultimaConfig > esperaCfg) { ultimaConfig = agora; rede.execute(this::atualizarConfig); }
         boolean dentro = naJanela();
         arm.putB("na_janela", dentro);
         if (dentro) {
@@ -240,8 +241,13 @@ public class RastreioService extends Service {
             arm.put("inicio", c.getString("inicio"));
             arm.put("fim", c.getString("fim"));
             arm.put("intervalo", String.valueOf(c.getInt("intervalo_s")));
+            String er = arm.get("erro", "");
+            if (er.startsWith("Horário") || er.startsWith("Sem conexão")) arm.put("erro", "");
+        } catch (SessaoExpirada e) {
+            arm.put("erro", "Sessão expirada. Abra o app e entre de novo.");
         } catch (Exception e) {
-            if (arm.get("inicio", null) == null) arm.put("erro", "Sem conexão para ler o horário de trabalho.");
+            String m = String.valueOf(e.getMessage());
+            if (arm.get("inicio", null) == null) arm.put("erro", "Horário de trabalho não carregou: " + m.substring(0, Math.min(160, m.length())));
         }
     }
 
@@ -256,8 +262,11 @@ public class RastreioService extends Service {
                 rpc("loc_registrar", new JSONObject().put("_dispositivo", arm.get("nome", "Celular")).put("_pontos", lote));
                 arm.removerInicio(lote.length());
                 arm.putL("ultimo_envio", System.currentTimeMillis());
+                arm.put("erro_envio", "");
                 if (!"Sessão expirada. Abra o app e entre de novo.".equals(arm.get("erro", ""))) { /* mantem avisos de GPS */ }
             } catch (Exception e) {
+                String m = String.valueOf(e.getMessage());
+                arm.put("erro_envio", m.substring(0, Math.min(160, m.length())));
                 return; // sem rede: tenta no proximo ciclo, os pontos continuam guardados
             } finally {
                 try { if (wl != null && wl.isHeld()) wl.release(); } catch (Throwable ignored) { }
