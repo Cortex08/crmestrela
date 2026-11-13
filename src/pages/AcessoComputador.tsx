@@ -28,6 +28,11 @@ const rpc = async (nome: string, args?: Record<string, unknown>) => {
   return data as any;
 };
 const dh = (v?: string | null) => (v ? format(new Date(v), "dd/MM/yyyy HH:mm", { locale: ptBR }) : '—');
+// Versao do programa de bloqueio (atualize junto com public/BloqueadorPC.bat)
+const BLOQUEADOR_VERSAO = '1.2';
+const BLOQUEADOR_DATA = '13/11/2026';
+const BLOQUEADOR_NOVIDADES = 'Mostra o progresso da instalação, token visível ao colar e pede para reiniciar o PC no final.';
+
 const cpfFmt = (c: string) => (c?.length === 11 ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}` : c || 'sem CPF');
 
 const EVENTOS: Record<string, { label: string; cls: string }> = {
@@ -270,14 +275,17 @@ export default function AcessoComputador() {
         <Card>
           <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1 space-y-1">
-              <p className="font-semibold flex items-center gap-2"><Download className="h-4 w-4" />Programa para instalar no computador</p>
+              <p className="font-semibold flex items-center gap-2 flex-wrap"><Download className="h-4 w-4" />Programa para instalar no computador
+                <Badge variant="secondary">Bloqueador versão {BLOQUEADOR_VERSAO}</Badge>
+                <span className="text-xs font-normal text-muted-foreground">atualizado em {BLOQUEADOR_DATA}</span></p>
+              <p className="text-xs text-muted-foreground">Novidades: {BLOQUEADOR_NOVIDADES}</p>
               <p className="text-sm text-muted-foreground">
                 Baixe o arquivo e dê dois cliques no PC que será bloqueado (Windows). Ele pede permissão de administrador e instala tudo sozinho. Na primeira vez pede o token do computador: cadastre o PC na aba Computadores (Cadastrar PC), copie o token e cole quando o programa pedir (basta apertar Enter na pergunta da URL).
                 Para remover depois: abra o prompt de comando como administrador e rode <code className="text-xs bg-muted px-1 rounded">BloqueadorPC.bat desinstalar</code>.
               </p>
               <p className="text-xs text-muted-foreground">Se o Windows avisar que o arquivo não é comum, clique em “Mais informações” → “Executar assim mesmo”.</p>
             </div>
-            <Button asChild><a href="/BloqueadorPC.bat" download="BloqueadorPC.bat"><Download className="h-4 w-4 mr-2" />Baixar programa</a></Button>
+            <Button asChild><a href={`/BloqueadorPC.bat?v=${BLOQUEADOR_VERSAO}`} download="BloqueadorPC.bat"><Download className="h-4 w-4 mr-2" />Baixar programa</a></Button>
           </CardContent>
         </Card>
         <Tabs defaultValue="computadores">

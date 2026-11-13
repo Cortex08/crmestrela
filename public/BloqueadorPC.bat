@@ -1,5 +1,5 @@
 @echo off
-title Bloqueador de PC - Instalador
+title Bloqueador de PC - Instalador - versao 1.2
 :: ===========================================================
 ::  BLOQUEADOR DE PC - arquivo unico
 ::  Duplo clique: instala tudo (baixa o Python se precisar).
@@ -28,6 +28,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+$VersaoBloqueador = '1.2'
 $Desinstalar = ($env:BPC_ARG -match 'desinstalar')
 $Reconf = ($env:BPC_ARG -match 'reconfigurar')
 
@@ -509,7 +510,7 @@ if ($Reconf) {
 # ---------------------------------------------------------------------------
 # Instalar
 # ---------------------------------------------------------------------------
-Escrever '=== Instalador do Bloqueador de PC ===' Cyan
+Escrever "=== Instalador do Bloqueador de PC - versao $VersaoBloqueador ===" Cyan
 
 # 1) Python
 $python = Achar-Python
