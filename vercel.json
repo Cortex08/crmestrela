@@ -31,7 +31,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://xwcuaicofmufcdzhtkqr.supabase.co https://*.whatsapp.net; connect-src 'self' https://xwcuaicofmufcdzhtkqr.supabase.co wss://xwcuaicofmufcdzhtkqr.supabase.co https://viacep.com.br; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org https://xwcuaicofmufcdzhtkqr.supabase.co https://*.whatsapp.net; connect-src 'self' https://xwcuaicofmufcdzhtkqr.supabase.co wss://xwcuaicofmufcdzhtkqr.supabase.co https://viacep.com.br; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         }
       ]
     },

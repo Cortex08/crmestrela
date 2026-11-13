@@ -44,6 +44,7 @@ const SiteAnunciar = lazy(() => import('./site/SiteFormPagina').then((m) => ({ d
 const SiteContato = lazy(() => import('./site/SiteFormPagina').then((m) => ({ default: m.SiteContato })));
 const SiteAdmin = lazy(() => import('./pages/SiteAdmin'));
 const AcessoComputador = lazy(() => import('./pages/AcessoComputador'));
+const Localizacao = lazy(() => import('./pages/Localizacao'));
 const PortalClientes = lazy(() => import('./pages/PortalClientes'));
 const PortalCliente = lazy(() => import('./portal/Portal'));
 const Suporte = lazy(() => import('./pages/Suporte'));
@@ -110,6 +111,7 @@ const App = () => (
                 <Route path="/portal" element={<ErrorBoundary><PortalCliente /></ErrorBoundary>} />
                 <Route path="/portal-clientes" element={page(<PortalClientes />, 'clientes')} />
                 <Route path="/acesso-computador" element={page(<AcessoComputador />)} />
+                <Route path="/localizacao" element={page(<Localizacao />)} />
                 <Route path="/suporte" element={page(<Suporte />)} />
                 <Route path="/perfil" element={page(<Perfil />)} />
                 <Route path="/admin/usuarios" element={page(<Usuarios />, 'usuarios')} />

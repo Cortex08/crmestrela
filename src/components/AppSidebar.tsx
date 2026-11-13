@@ -69,6 +69,7 @@ const menuSections: MenuSection[] = [
     label: 'Administração', icon: ShieldCheck, items: [
       { title: 'Usuários', url: '/admin/usuarios', icon: UserCog, module: 'usuarios' },
       { title: 'Acesso ao Computador', url: '/acesso-computador', icon: Monitor, module: 'usuarios' },
+      { title: 'Localização', url: '/localizacao', icon: MapPin, module: 'usuarios' },
     ],
   },
   {
