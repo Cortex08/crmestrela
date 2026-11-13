@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { UserPlus, MoreVertical, KeyRound, ShieldCheck, UserX, UserCheck, Trash2, Save } from 'lucide-react';
+import { UserPlus, MoreVertical, KeyRound, Eye, EyeOff, ShieldCheck, UserX, UserCheck, Trash2, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -55,6 +55,12 @@ const Usuarios = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [newUser, setNewUser] = useState({ nome: '', email: '', telefone: '', password: '', roles: ['consultor'] as string[] });
   const [saving, setSaving] = useState(false);
+  const [senhas, setSenhas] = useState<Record<string, { senha: string; em: string }> | null>(null);
+  const [mostrarIds, setMostrarIds] = useState<Record<string, boolean>>({});
+  const revelar = async () => {
+    if (senhas) { setSenhas(null); setMostrarIds({}); return; }
+    try { const r = await callAdmin({ action: 'ver_senhas' }); setSenhas(r.senhas || {}); } catch (e: any) { toast.error(e.message); }
+  };
   const [rolesEdit, setRolesEdit] = useState<{ id: string; nome: string; roles: string[] } | null>(null);
   const [pwdEdit, setPwdEdit] = useState<{ id: string; nome: string; password: string } | null>(null);
   const [confirm, setConfirm] = useState<{ type: 'delete' | 'status'; id: string; nome: string; status?: string } | null>(null);
@@ -141,7 +147,7 @@ const Usuarios = () => {
             <h1 className="text-3xl font-bold">Usuários</h1>
             <p className="text-muted-foreground">Gerencie a equipe, cargos e permissões</p>
           </div>
-          <Button onClick={() => setCreateOpen(true)}><UserPlus className="mr-2 h-4 w-4" />Novo Usuário</Button>
+          <div className="flex gap-2"><Button variant="outline" onClick={revelar}>{senhas ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}{senhas ? 'Ocultar senhas' : 'Ver senhas'}</Button><Button onClick={() => setCreateOpen(true)}><UserPlus className="mr-2 h-4 w-4" />Novo Usuário</Button></div>
         </div>
 
         <p className="text-sm text-muted-foreground rounded-lg border bg-muted/40 px-3 py-2">
@@ -169,6 +175,7 @@ const Usuarios = () => {
                         <TableHead className="hidden md:table-cell">Email</TableHead>
                         <TableHead>Cargos</TableHead>
                         <TableHead>Status</TableHead>
+                        {senhas && <TableHead>Senha</TableHead>}
                         <TableHead className="w-10" />
                       </TableRow>
                     </TableHeader>
@@ -187,6 +194,16 @@ const Usuarios = () => {
                               {u.status === 'ativo' ? 'Ativo' : 'Inativo'}
                             </Badge>
                           </TableCell>
+                          {senhas && (
+                            <TableCell className="text-sm">
+                              {senhas[u.id] ? (
+                                <button type="button" className="font-mono hover:underline" title="Clique para mostrar/ocultar"
+                                  onClick={() => setMostrarIds((m) => ({ ...m, [u.id]: !m[u.id] }))}>
+                                  {mostrarIds[u.id] ? senhas[u.id].senha : '••••••••'}
+                                </button>
+                              ) : <span className="text-xs text-muted-foreground">redefina para guardar</span>}
+                            </TableCell>
+                          )}
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>

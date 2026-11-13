@@ -29,9 +29,9 @@ const rpc = async (nome: string, args?: Record<string, unknown>) => {
 };
 const dh = (v?: string | null) => (v ? format(new Date(v), "dd/MM/yyyy HH:mm", { locale: ptBR }) : '—');
 // Versao do programa de bloqueio (atualize junto com public/BloqueadorPC.bat)
-const BLOQUEADOR_VERSAO = '1.8';
+const BLOQUEADOR_VERSAO = '1.9';
 const BLOQUEADOR_DATA = '13/11/2026';
-const BLOQUEADOR_NOVIDADES = 'Feito para PCs fracos: corrige travadas da tela, carrega menos coisa ao abrir e prepara o Windows no boot.';
+const BLOQUEADOR_NOVIDADES = 'Fica ativo depois do login: o botão Bloquear do CRM tranca o PC na hora. Login também aceita CPF + senha do CRM.';
 
 const cpfFmt = (c: string) => (c?.length === 11 ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}` : c || 'sem CPF');
 
@@ -114,6 +114,8 @@ function AbaAcessos() {
 function AbaComputadores() {
   const qc = useQueryClient();
   const { data = [], isLoading } = useQuery({ queryKey: ['pc-computadores'], queryFn: () => rpc('pc_computadores_listar'), refetchInterval: 15000 });
+  const funcionarios = useQuery({ queryKey: ['pc-funcionarios'], queryFn: async () => { const { data } = await supabase.from('employees').select('id, nome').order('nome'); return (data ?? []) as { id: string; nome: string }[]; } });
+  const vincular = useMutation({ mutationFn: (v: { id: string; emp: string | null }) => rpc('pc_vincular', { _id: v.id, _employee: v.emp }), onSuccess: () => { toast.success('Vínculo salvo'); qc.invalidateQueries({ queryKey: ['pc-computadores'] }); }, onError: (e: any) => toast.error(e.message) });
   const [novo, setNovo] = useState(false);
   const [ident, setIdent] = useState('');
   const [rede, setRede] = useState('');
@@ -161,6 +163,16 @@ function AbaComputadores() {
                       <span className={`inline-block h-2 w-2 rounded-full ${pc.online ? 'bg-green-500' : 'bg-red-500'}`} />
                       {pc.online ? 'Online' : 'Sem comunicação'} · Última comunicação: {dh(pc.ultima_comunicacao)}
                     </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-muted-foreground">Funcionário:</span>
+                      <Select value={pc.employee_id ?? 'nenhum'} onValueChange={(v) => vincular.mutate({ id: pc.id, emp: v === 'nenhum' ? null : v })}>
+                        <SelectTrigger className="h-7 w-48 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="nenhum">Sem vínculo</SelectItem>
+                          {(funcionarios.data ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
                 <Badge className={pc.status === 'liberado' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-slate-200 text-slate-800 border-slate-300'}>
