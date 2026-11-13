@@ -29,9 +29,9 @@ const rpc = async (nome: string, args?: Record<string, unknown>) => {
 };
 const dh = (v?: string | null) => (v ? format(new Date(v), "dd/MM/yyyy HH:mm", { locale: ptBR }) : '—');
 // Versao do programa de bloqueio (atualize junto com public/BloqueadorPC.bat)
-const BLOQUEADOR_VERSAO = '1.7';
+const BLOQUEADOR_VERSAO = '1.8';
 const BLOQUEADOR_DATA = '13/11/2026';
-const BLOQUEADOR_NOVIDADES = 'Abre mais rápido, grava quando e como iniciou e tem o modo diagnóstico: BloqueadorPC.bat diagnostico.';
+const BLOQUEADOR_NOVIDADES = 'Feito para PCs fracos: corrige travadas da tela, carrega menos coisa ao abrir e prepara o Windows no boot.';
 
 const cpfFmt = (c: string) => (c?.length === 11 ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}` : c || 'sem CPF');
 
