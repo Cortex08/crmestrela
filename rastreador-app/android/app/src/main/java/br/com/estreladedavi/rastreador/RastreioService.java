@@ -51,7 +51,14 @@ public class RastreioService extends Service {
     private final LocationListener ouvinte = new LocationListener() {
         @Override public void onLocationChanged(Location l) {
             if (ultimo == null || l.getAccuracy() <= ultimo.getAccuracy() + 150 || l.getTime() - ultimo.getTime() > 60000) ultimo = l;
-            arm.putL("ultimo_gps", System.currentTimeMillis());
+            long agora = System.currentTimeMillis();
+            arm.putL("ultimo_gps", agora);
+            // o aviso do GPS acorda o aparelho: ja registra e envia aqui, sem esperar o relogio interno
+            if (arm.getB("na_janela", false)) {
+                int intervalo = Math.max(15, (int) Long.parseLong(arm.get("intervalo", "60")));
+                if (agora - ultimoEnfileirado >= intervalo * 800L) { ultimoEnfileirado = agora; enfileirar(ultimo); }
+                dispararEnvio();
+            }
         }
         @Override public void onStatusChanged(String p, int s, Bundle e) { }
         @Override public void onProviderEnabled(String p) { }
@@ -61,7 +68,7 @@ public class RastreioService extends Service {
     private final Runnable ciclo = new Runnable() {
         @Override public void run() {
             try { tick(); } catch (Throwable t) { arm.put("erro", "Falha interna: " + t.getMessage()); }
-            h.postDelayed(this, 20_000);
+            h.postDelayed(this, 10_000);
         }
     };
 
@@ -101,6 +108,7 @@ public class RastreioService extends Service {
         rodando = false;
         h.removeCallbacksAndMessages(null);
         pararGps();
+        segurarAparelho(false);
         rede.shutdown();
         super.onDestroy();
     }
@@ -109,10 +117,11 @@ public class RastreioService extends Service {
     private void tick() {
         if (!arm.getB("ativo", false)) { stopSelf(); return; }
         long agora = System.currentTimeMillis();
-        long esperaCfg = arm.get("inicio", null) == null ? 60_000L : 5 * 60_000L;   // sem horario ainda: tenta a cada minuto
+        long esperaCfg = arm.get("inicio", null) == null ? 15_000L : 5 * 60_000L;   // sem horario ainda: tenta a cada minuto
         if (agora - ultimaConfig > esperaCfg) { ultimaConfig = agora; rede.execute(this::atualizarConfig); }
         boolean dentro = naJanela();
         arm.putB("na_janela", dentro);
+        segurarAparelho(dentro);
         if (dentro) {
             iniciarGps();
             int intervalo = Math.max(15, (int) Long.parseLong(arm.get("intervalo", "60")));
@@ -123,7 +132,26 @@ public class RastreioService extends Service {
         } else {
             pararGps();
         }
-        if (arm.pendentes() > 0 && !enviando) { enviando = true; rede.execute(() -> { try { enviar(); } finally { enviando = false; } }); }
+        if (arm.pendentes() > 0) dispararEnvio();
+    }
+
+    private void dispararEnvio() {
+        if (enviando) return;
+        enviando = true;
+        rede.execute(() -> { try { enviar(); } finally { enviando = false; } });
+    }
+
+    private PowerManager.WakeLock wlJanela;
+    /** Dentro do horario de trabalho mantem a CPU acordada para o relogio interno nao parar com a tela apagada. */
+    private void segurarAparelho(boolean dentro) {
+        try {
+            if (dentro) {
+                if (wlJanela == null) wlJanela = ((PowerManager) getSystemService(Context.POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "rastreador:janela");
+                if (!wlJanela.isHeld()) wlJanela.acquire(15 * 60_000L);
+            } else if (wlJanela != null && wlJanela.isHeld()) {
+                wlJanela.release();
+            }
+        } catch (Throwable ignored) { }
     }
 
     private boolean naJanela() {
@@ -144,11 +172,16 @@ public class RastreioService extends Service {
         if (ouvindo) return;
         try {
             int intervalo = Math.max(15, (int) Long.parseLong(arm.get("intervalo", "60")));
-            long ms = Math.max(10_000, intervalo * 500L);
+            long ms = 10_000L;
             boolean algum = false;
             if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) { lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, ms, 0, ouvinte, Looper.getMainLooper()); algum = true; }
             if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) { lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, ms, 0, ouvinte, Looper.getMainLooper()); algum = true; }
             ouvindo = algum;
+            if (algum && ultimo == null) {
+                Location a = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER), b = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+                Location melhor = a == null ? b : (b == null ? a : (b.getTime() > a.getTime() ? b : a));
+                if (melhor != null && System.currentTimeMillis() - melhor.getTime() < 10 * 60_000L) ultimo = melhor;   // ja tem posicao para enviar de imediato
+            }
             arm.put("erro", algum ? "" : "GPS desligado no celular. Ative a localização.");
         } catch (SecurityException e) {
             arm.put("erro", "Sem permissão de localização. Abra o app e permita \"O tempo todo\".");
