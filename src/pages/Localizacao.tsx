@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -29,40 +29,76 @@ interface Ultima { user_id: string; dispositivo: string; lat: number; lng: numbe
 interface Ponto { lat: number; lng: number; bateria: number | null; registrado_em: string }
 const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
-function Mapa({ ultimas, trajeto, foco }: { ultimas: Ultima[]; trajeto: Ponto[]; foco: string | null }) {
+const MAX_PONTOS_DESENHADOS = 150;
+const textoAtualizado = (u: Ultima) =>
+  `${u.dispositivo} · ${formatDistanceToNow(new Date(u.registrado_em), { addSuffix: true, locale: ptBR })}`;
+
+function Mapa({ ultimas, trajeto, foco, versaoFoco }: { ultimas: Ultima[]; trajeto: Ponto[]; foco: string | null; versaoFoco: number }) {
   const el = useRef<HTMLDivElement>(null);
   const mapa = useRef<L.Map | null>(null);
-  const camada = useRef<L.LayerGroup | null>(null);
+  const marcadores = useRef<Map<string, L.CircleMarker>>(new Map());
+  const camadaTrajeto = useRef<L.LayerGroup | null>(null);
+  const ajustouInicial = useRef(false);
 
+  // cria o mapa uma única vez (renderer em canvas: bem mais leve que SVG)
   useEffect(() => {
     if (!el.current || mapa.current) return;
-    mapa.current = L.map(el.current).setView([-14.2, -51.9], 4);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapa.current);
-    camada.current = L.layerGroup().addTo(mapa.current);
-    return () => { mapa.current?.remove(); mapa.current = null; };
+    const m = L.map(el.current, { preferCanvas: true, zoomControl: true, worldCopyJump: false }).setView([-14.2, -51.9], 4);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', keepBuffer: 2, updateWhenIdle: true }).addTo(m);
+    camadaTrajeto.current = L.layerGroup().addTo(m);
+    mapa.current = m;
+    const ro = new ResizeObserver(() => m.invalidateSize());
+    ro.observe(el.current);
+    return () => { ro.disconnect(); m.remove(); mapa.current = null; marcadores.current.clear(); };
   }, []);
 
+  // atualiza os celulares SEM recriar tudo e SEM mexer no zoom do usuário
   useEffect(() => {
-    const m = mapa.current, g = camada.current;
+    const m = mapa.current;
+    if (!m) return;
+    const ids = new Set(ultimas.map((u) => u.user_id));
+    marcadores.current.forEach((mk, id) => { if (!ids.has(id)) { mk.remove(); marcadores.current.delete(id); } });
+    ultimas.forEach((u) => {
+      const cor = u.ao_vivo ? '#16a34a' : '#6b7280';
+      const existente = marcadores.current.get(u.user_id);
+      if (existente) {
+        existente.setLatLng([u.lat, u.lng]).setStyle({ fillColor: cor });
+        existente.setTooltipContent(textoAtualizado(u));
+      } else {
+        const mk = L.circleMarker([u.lat, u.lng], { radius: 10, color: '#fff', weight: 3, fillColor: cor, fillOpacity: 1 })
+          .bindTooltip(textoAtualizado(u), { permanent: true, direction: 'top', offset: [0, -8] }).addTo(m);
+        marcadores.current.set(u.user_id, mk);
+      }
+    });
+    if (!ajustouInicial.current && ultimas.length) {
+      ajustouInicial.current = true;
+      m.fitBounds(L.latLngBounds(ultimas.map((u) => [u.lat, u.lng] as L.LatLngTuple)), { padding: [50, 50], maxZoom: 16, animate: false });
+    }
+  }, [ultimas]);
+
+  // trajeto do dia: uma linha + poucos pontos (amostrados), só redesenha quando o trajeto muda
+  useEffect(() => {
+    const m = mapa.current, g = camadaTrajeto.current;
     if (!m || !g) return;
     g.clearLayers();
-    const bounds: L.LatLngTuple[] = [];
-    if (trajeto.length) {
-      const pts = trajeto.map(p => [p.lat, p.lng] as L.LatLngTuple);
-      L.polyline(pts, { color: '#2563eb', weight: 4, opacity: 0.8 }).addTo(g);
-      trajeto.forEach(p => L.circleMarker([p.lat, p.lng], { radius: 3, color: '#1d4ed8', fillOpacity: 1 })
-        .bindTooltip(format(new Date(p.registrado_em), 'HH:mm')).addTo(g));
-      bounds.push(...pts);
-    }
-    ultimas.forEach(u => {
-      const cor = u.ao_vivo ? '#16a34a' : '#6b7280';
-      L.circleMarker([u.lat, u.lng], { radius: 10, color: '#fff', weight: 3, fillColor: cor, fillOpacity: 1 })
-        .bindTooltip(`${u.dispositivo} · ${formatDistanceToNow(new Date(u.registrado_em), { addSuffix: true, locale: ptBR })}`, { permanent: true, direction: 'top', offset: [0, -8] })
-        .addTo(g);
-      if (!trajeto.length || foco === u.user_id) bounds.push([u.lat, u.lng]);
+    if (!trajeto.length) return;
+    const pts = trajeto.map((p) => [p.lat, p.lng] as L.LatLngTuple);
+    L.polyline(pts, { color: '#2563eb', weight: 4, opacity: 0.8, smoothFactor: 2 }).addTo(g);
+    const passo = Math.max(1, Math.ceil(trajeto.length / MAX_PONTOS_DESENHADOS));
+    trajeto.forEach((p, i) => {
+      if (i % passo !== 0 && i !== trajeto.length - 1) return;
+      L.circleMarker([p.lat, p.lng], { radius: 3, color: '#1d4ed8', fillOpacity: 1 }).bindTooltip(format(new Date(p.registrado_em), 'HH:mm')).addTo(g);
     });
-    if (bounds.length) m.fitBounds(L.latLngBounds(bounds), { padding: [50, 50], maxZoom: 17 });
-  }, [ultimas, trajeto, foco]);
+    m.fitBounds(L.latLngBounds(pts), { padding: [50, 50], maxZoom: 17, animate: false });
+  }, [trajeto]);
+
+  // ao clicar num celular, centraliza nele (só quando o usuário escolhe, nunca nas atualizações automáticas)
+  useEffect(() => {
+    const m = mapa.current;
+    if (!m || !foco) return;
+    const mk = marcadores.current.get(foco);
+    if (mk) m.setView(mk.getLatLng(), Math.max(m.getZoom(), 15), { animate: false });
+  }, [foco, versaoFoco]);
 
   return <div ref={el} className="h-[520px] w-full rounded-lg border overflow-hidden z-0" />;
 }
@@ -103,16 +139,18 @@ function Configuracao() {
 export default function Localizacao() {
   const { roles } = useAuth();
   const [foco, setFoco] = useState<string | null>(null);
+  const [versaoFoco, setVersaoFoco] = useState(0);
   const [dia, setDia] = useState(format(new Date(), 'yyyy-MM-dd'));
   const admin = roles.includes('admin');
 
-  const ultimas = useQuery({ queryKey: ['loc-ultimas'], enabled: admin, refetchInterval: 30_000, queryFn: () => rpc('loc_ultimas') as Promise<Ultima[]> });
+  const ultimas = useQuery({ queryKey: ['loc-ultimas'], enabled: admin, refetchInterval: 30_000, staleTime: 15_000, structuralSharing: true, queryFn: () => rpc('loc_ultimas') as Promise<Ultima[]> });
   const nomes = useQuery({ queryKey: ['loc-nomes'], enabled: admin, queryFn: async () => {
-    const { data } = await supabase.from('profiles').select('id, nome'); return Object.fromEntries((data ?? []).map((p: any) => [p.id, p.nome])) as Record<string, string>; } });
-  const trajeto = useQuery({ queryKey: ['loc-trajeto', foco, dia], enabled: admin && !!foco, queryFn: () => rpc('loc_trajeto', { _user: foco, _dia: dia }) as Promise<Ponto[]> });
+    const { data } = await supabase.from('profiles').select('id, nome'); return Object.fromEntries((data ?? []).map((p: any) => [p.id, p.nome])) as Record<string, string>; }, staleTime: 10 * 60_000 });
+  const trajeto = useQuery({ queryKey: ['loc-trajeto', foco, dia], enabled: admin && !!foco, staleTime: 60_000, placeholderData: keepPreviousData, queryFn: () => rpc('loc_trajeto', { _user: foco, _dia: dia }) as Promise<Ponto[]> });
 
+  const lista = useMemo(() => (ultimas.data ?? []).map(u => ({ ...u, dispositivo: nomes.data?.[u.user_id] ? `${nomes.data[u.user_id]} (${u.dispositivo})` : u.dispositivo })), [ultimas.data, nomes.data]);
+  const pontosTrajeto = useMemo(() => (foco ? trajeto.data ?? [] : []), [foco, trajeto.data]);
   if (!admin) return <Navigate to="/" replace />;
-  const lista = (ultimas.data ?? []).map(u => ({ ...u, dispositivo: nomes.data?.[u.user_id] ? `${nomes.data[u.user_id]} (${u.dispositivo})` : u.dispositivo }));
 
   return (
     <DashboardLayout>
@@ -124,12 +162,12 @@ export default function Localizacao() {
         </div>
         {ultimas.isLoading ? <LoadingCard /> : (
           <div className="grid lg:grid-cols-[1fr_300px] gap-4">
-            <Mapa ultimas={lista} trajeto={foco ? trajeto.data ?? [] : []} foco={foco} />
+            <Mapa ultimas={lista} trajeto={pontosTrajeto} foco={foco} versaoFoco={versaoFoco} />
             <div className="space-y-2">
               {ultimas.error && <p className="text-sm text-destructive">{(ultimas.error as Error).message}</p>}
               {!lista.length && <Card><CardContent className="p-4 text-sm text-muted-foreground">Nenhum celular enviou localização nos últimos 7 dias. Instale o app no celular da empresa e entre com o login dele.</CardContent></Card>}
               {lista.map(u => (
-                <Card key={u.user_id} className={`cursor-pointer ${foco === u.user_id ? 'ring-2 ring-primary' : ''}`} onClick={() => setFoco(foco === u.user_id ? null : u.user_id)}>
+                <Card key={u.user_id} className={`cursor-pointer ${foco === u.user_id ? 'ring-2 ring-primary' : ''}`} onClick={() => { setFoco(foco === u.user_id ? null : u.user_id); setVersaoFoco((v) => v + 1); }}>
                   <CardContent className="p-3 space-y-1">
                     <div className="flex items-center justify-between gap-2"><p className="font-medium text-sm">{u.dispositivo}</p>
                       <Badge variant={u.ao_vivo ? 'default' : 'secondary'}>{u.ao_vivo ? 'ao vivo' : 'parado/offline'}</Badge></div>
