@@ -1,5 +1,5 @@
 @echo off
-title Bloqueador de PC - Instalador - versao 1.3
+title Bloqueador de PC - Instalador - versao 1.4
 :: ===========================================================
 ::  BLOQUEADOR DE PC - arquivo unico
 ::  Duplo clique: instala tudo (baixa o Python se precisar).
@@ -28,7 +28,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VersaoBloqueador = '1.3'
+$VersaoBloqueador = '1.4'
 $Desinstalar = ($env:BPC_ARG -match 'desinstalar')
 $Reconf = ($env:BPC_ARG -match 'reconfigurar')
 
@@ -567,8 +567,10 @@ New-Item -ItemType Directory -Path $local -Force | Out-Null
 
 # 5) Tarefa agendada: a cada logon, o iniciador confere o Python e abre o bloqueio
 Escrever '[4/5] Configurando inicio automatico...' Yellow
-$acao      = New-ScheduledTaskAction -Execute 'powershell.exe' `
-              -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$Pasta\iniciar.ps1`""
+# Abre o bloqueio DIRETO com o pythonw (sem passar pelo PowerShell: mais rapido no logon e sem janela piscando)
+$pythonw   = Join-Path (Split-Path $python) 'pythonw.exe'
+if (-not (Test-Path $pythonw)) { throw "pythonw.exe nao encontrado em $(Split-Path $python)" }
+$acao      = New-ScheduledTaskAction -Execute $pythonw -Argument "`"$Pasta\bloqueador.py`"" -WorkingDirectory $Pasta
 $gatilho   = New-ScheduledTaskTrigger -AtLogOn
 $principal = New-ScheduledTaskPrincipal -GroupId 'S-1-5-32-545' -RunLevel Limited
 $config    = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
