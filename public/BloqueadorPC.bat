@@ -422,8 +422,24 @@ function Decodificar($b64) {
 
 function Escrever($msg, $cor = 'White') { Write-Host $msg -ForegroundColor $cor }
 
-function Rodar($exe, $argumentos) {
-    $p = Start-Process -FilePath $exe -ArgumentList $argumentos -Wait -PassThru -WindowStyle Hidden
+# Mostra um indicador de atividade (giratorio + tempo) enquanto algo demorado roda
+function Mostrar-Atividade($texto, [scriptblock]$terminou) {
+    $giro = '|', '/', '-', '\'
+    $i = 0
+    $ini = Get-Date
+    while (-not (& $terminou)) {
+        $seg = [int]((Get-Date) - $ini).TotalSeconds
+        Write-Host ("`r      {0} {1}  ({2}:{3:00})   " -f $giro[$i % 4], $texto, [int][math]::Floor($seg / 60), ($seg % 60)) -NoNewline -ForegroundColor DarkYellow
+        $i++
+        Start-Sleep -Milliseconds 250
+    }
+    Write-Host ("`r      OK  {0}                                        " -f $texto) -ForegroundColor Green
+}
+
+function Rodar($exe, $argumentos, $texto = '') {
+    $p = Start-Process -FilePath $exe -ArgumentList $argumentos -PassThru -WindowStyle Hidden
+    if ($texto) { Mostrar-Atividade $texto { $p.HasExited } } else { $p.WaitForExit() }
+    $p.WaitForExit()
     return $p.ExitCode
 }
 
@@ -497,7 +513,16 @@ if ($python) {
 } else {
     Escrever "[1/5] Baixando o Python $PyVersao (python.org)..." Yellow
     $instalador = Join-Path $env:TEMP "python-$PyVersao-amd64.exe"
-    Invoke-WebRequest -Uri $PyUrl -OutFile $instalador -UseBasicParsing
+    $job = Start-Job -ScriptBlock {
+        param($u, $o)
+        $ProgressPreference = 'SilentlyContinue'
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $u -OutFile $o -UseBasicParsing
+    } -ArgumentList $PyUrl, $instalador
+    Mostrar-Atividade 'Baixando o Python, aguarde' { $job.State -ne 'Running' }
+    $falhou = $job.State -ne 'Completed'
+    Remove-Job $job -Force
+    if ($falhou -or -not (Test-Path $instalador)) { throw 'Falha ao baixar o Python. Confira a internet e tente de novo.' }
 
     # Confere se o arquivo baixado e assinado pela Python Software Foundation
     $assinatura = Get-AuthenticodeSignature $instalador
@@ -506,8 +531,8 @@ if ($python) {
         throw 'O instalador baixado nao tem assinatura valida da Python Software Foundation. Abortado.'
     }
 
-    Escrever '      Instalando o Python (pode levar alguns minutos)...' Yellow
-    $codigo = Rodar $instalador '/quiet InstallAllUsers=1 PrependPath=1 Include_tcltk=1 Include_launcher=0 Include_test=0'
+    Escrever '      Instalando o Python (pode levar alguns minutos, nao feche esta janela)...' Yellow
+    $codigo = Rodar $instalador '/quiet InstallAllUsers=1 PrependPath=1 Include_tcltk=1 Include_launcher=0 Include_test=0' 'Instalando o Python, aguarde'
     Remove-Item $instalador -Force -ErrorAction SilentlyContinue
     if ($codigo -ne 0) { throw "Falha ao instalar o Python (codigo $codigo)." }
 
@@ -556,12 +581,21 @@ Escrever 'Testando a conexao com o CRM...' Yellow
 & $python (Join-Path $Pasta 'bloqueador.py') --testar
 
 Escrever ''
-Escrever 'Instalacao concluida!' Green
-Escrever 'Senhas e liberacoes sao gerenciadas no CRM (Administracao > Acesso ao Computador).' Green
-Escrever 'Para trocar URL/token: execute este arquivo com o parametro: reconfigurar' Green
-Escrever 'Para desinstalar: execute este arquivo pelo terminal com o parametro: desinstalar' Green
+Write-Host '  ==================================================' -ForegroundColor Green
+Write-Host '    INSTALACAO CONCLUIDA COM SUCESSO!' -ForegroundColor Green
+Write-Host '  ==================================================' -ForegroundColor Green
 Escrever ''
-$agora = Read-Host 'Iniciar o bloqueio agora para testar? (S/N)'
+Write-Host '    O bloqueador esta instalado e vai funcionar.' -ForegroundColor White
+Write-Host '    >> REINICIE O COMPUTADOR para ele ser ativado. <<' -ForegroundColor Yellow
+Escrever ''
+Escrever 'Senhas e liberacoes sao gerenciadas no CRM (Administracao > Acesso ao Computador).' DarkGray
+Escrever 'Para trocar URL/token: execute este arquivo com o parametro: reconfigurar' DarkGray
+Escrever 'Para desinstalar: execute este arquivo pelo terminal com o parametro: desinstalar' DarkGray
+Escrever ''
+$agora = Read-Host 'Reiniciar o computador agora? (S/N)'
 if ($agora -match '^[sS]') {
-    Start-Process powershell.exe -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$Pasta\iniciar.ps1`""
+    Escrever 'Reiniciando em 15 segundos... salve o que estiver aberto.' Yellow
+    & shutdown.exe /r /t 15 /c "Reinicio para ativar o Bloqueador de PC"
+} else {
+    Escrever 'Tudo certo. Lembre-se de reiniciar o computador para ativar o bloqueio.' Yellow
 }
