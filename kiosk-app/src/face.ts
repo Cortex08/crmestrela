@@ -67,68 +67,69 @@ function conferirEnquadramento(video: HTMLVideoElement, det: any): string | null
   const dx = (b.x + b.width / 2 - vw / 2) / visW;
   const dy = (b.y + b.height / 2 - vh / 2) / visH + 0.02; // a moldura fica um pouco acima do meio
 
-  if (largura < 0.26) return 'Chegue mais perto da câmera';
-  if (largura > 0.7) return 'Afaste um pouco o rosto';
-  if (Math.abs(dx) > 0.2 || Math.abs(dy) > 0.22) return 'Centralize o rosto dentro da moldura';
+  if (largura < 0.22) return 'Chegue mais perto da câmera';
+  if (largura > 0.75) return 'Afaste um pouco o rosto';
+  if (Math.abs(dx) > 0.25 || Math.abs(dy) > 0.27) return 'Centralize o rosto dentro da moldura';
 
   const p = det.landmarks.positions;
   const meio = (p[0].x + p[16].x) / 2;
   const lado = (p[30].x - meio) / (p[16].x - p[0].x);
-  if (Math.abs(lado) > 0.2) return 'Olhe de frente para a câmera';
+  if (Math.abs(lado) > 0.25) return 'Olhe de frente para a câmera';
   return null;
 }
 
-export const AMOSTRAS = 5;
+export const AMOSTRAS = 3;
 
 /**
- * Enquadra o rosto, coleta várias leituras nítidas e devolve o descritor médio (mais estável que uma leitura só).
- * Sem prova de vida por piscada: o rosto é lido assim que fica bem enquadrado.
+ * Enquadra o rosto, coleta poucas leituras nítidas e devolve o descritor médio.
+ * Otimizado para celulares fracos: 1 detecção leve para checar o enquadramento + 1 leitura completa por amostra
+ * (antes eram 2 detecções pesadas por amostra), tolerando quadros ruins sem recomeçar do zero.
  */
-export async function lerRosto(video: HTMLVideoElement, onEstado: (e: EstadoRosto) => void, cancelado: () => boolean, limiteMs = 40000): Promise<number[]> {
+export async function lerRosto(video: HTMLVideoElement, onEstado: (e: EstadoRosto) => void, cancelado: () => boolean, limiteMs = 30000): Promise<number[]> {
   const faceapi = await carregarFaceApi();
-  const rapido = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 });
-  const preciso = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 });
+  const leve = new faceapi.TinyFaceDetectorOptions({ inputSize: 192, scoreThreshold: 0.4 });
+  const leitura = new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.5 });
   const canvas = document.createElement('canvas');
   const ini = Date.now();
-  let bons = 0, quadro = 0, ultimaDica = 'Coloque o rosto no centro da moldura';
+  let pronto = false, quadro = 0, falhas = 0, ultimaDica = 'Coloque o rosto no centro da moldura';
   const amostras: Float32Array[] = [];
   const emitir = (fase: EstadoRosto['fase'], ok: boolean, dica: string) => { ultimaDica = dica; onEstado({ fase, ok, dica, leituras: amostras.length }); };
+  // um quadro ruim isolado não zera o progresso; só 3 seguidos
+  const ruim = (dica: string, espera = 40) => { falhas++; if (falhas >= 3) { pronto = false; amostras.length = 0; } emitir('posicionar', false, dica); return pausa(espera); };
 
   while (Date.now() - ini < limiteMs && amostras.length < AMOSTRAS) {
     if (cancelado()) throw new Error('cancelado');
     if (video.readyState < 2 || !video.videoWidth) { await pausa(60); continue; }
     quadro++;
 
-    const lendo = bons >= 2;
-    const det = await faceapi.detectSingleFace(video, lendo ? preciso : rapido).withFaceLandmarks();
-    if (!det) { bons = 0; amostras.length = 0; emitir('posicionar', false, 'Não encontrei seu rosto. Olhe para a câmera'); await pausa(80); continue; }
-
-    if (quadro % 8 === 1) {
-      const l = brilho(video, canvas);
-      if (l < 45) { bons = 0; amostras.length = 0; emitir('posicionar', false, 'Está escuro. Vá para um lugar mais iluminado'); await pausa(150); continue; }
-      if (l > 235) { bons = 0; amostras.length = 0; emitir('posicionar', false, 'Luz forte demais. Evite ficar contra a janela'); await pausa(150); continue; }
+    if (!pronto) {
+      // fase 1: detecção leve só para conferir o enquadramento
+      const det = await faceapi.detectSingleFace(video, leve).withFaceLandmarks();
+      if (!det) { await ruim('Não encontrei seu rosto. Olhe para a câmera', 60); continue; }
+      if (quadro % 6 === 1) {
+        const l = brilho(video, canvas);
+        if (l < 45) { await ruim('Está escuro. Vá para um lugar mais iluminado', 150); continue; }
+        if (l > 235) { await ruim('Luz forte demais. Evite ficar contra a janela', 150); continue; }
+      }
+      const ajuste = conferirEnquadramento(video, det);
+      if (ajuste) { await ruim(ajuste); continue; }
+      falhas = 0; pronto = true;
+      emitir('lendo', true, 'Lendo seu rosto, fique parado…');
     }
 
-    const ajuste = conferirEnquadramento(video, det);
-    if (ajuste) { bons = 0; amostras.length = 0; emitir('posicionar', false, ajuste); await pausa(40); continue; }
-    bons++;
-    if (bons < 2) { emitir('posicionar', true, 'Perfeito, fique assim…'); continue; }
-
-    // leitura nítida: só usa quadros em que o detector tem confiança alta
-    const full = await faceapi.detectSingleFace(video, preciso).withFaceLandmarks().withFaceDescriptor();
-    if (!full || full.detection.score < 0.7) { await pausa(30); continue; }
+    // fase 2: uma única leitura completa por amostra
+    const full = await faceapi.detectSingleFace(video, leitura).withFaceLandmarks().withFaceDescriptor();
+    if (!full || full.detection.score < 0.6) { falhas++; if (falhas >= 3) { pronto = false; amostras.length = 0; } continue; }
+    falhas = 0;
     amostras.push(full.descriptor);
     emitir('lendo', true, amostras.length >= AMOSTRAS ? 'Pronto!' : 'Lendo seu rosto, fique parado…');
-    await pausa(40);
   }
 
   if (amostras.length < AMOSTRAS) throw new Error(`Não consegui ler seu rosto com clareza. ${ultimaDica}. Tente de novo.`);
 
-  // descarta leituras discrepantes (borrão, movimento): fica com as mais próximas da mediana
   const media = (xs: Float32Array[]) => Float32Array.from({ length: 128 }, (_, i) => xs.reduce((t, a) => t + a[i], 0) / xs.length);
-  const centro = media(amostras);
-  const ordenadas = [...amostras].sort((a, b) => euclid(a, centro) - euclid(b, centro));
-  const boas = ordenadas.slice(0, 4);
-  if (euclid(boas[0], boas[boas.length - 1]) > 0.5) throw new Error('A leitura ficou instável. Fique parado, olhando para a câmera, e tente de novo.');
-  return Array.from(media(boas));
+  if (euclid(amostras[0], amostras[amostras.length - 1]) > 0.55 || euclid(amostras[0], media(amostras)) > 0.5) {
+    throw new Error('A leitura ficou instável. Fique parado, olhando para a câmera, e tente de novo.');
+  }
+  return Array.from(media(amostras));
 }
