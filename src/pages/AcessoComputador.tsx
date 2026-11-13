@@ -29,9 +29,9 @@ const rpc = async (nome: string, args?: Record<string, unknown>) => {
 };
 const dh = (v?: string | null) => (v ? format(new Date(v), "dd/MM/yyyy HH:mm", { locale: ptBR }) : '—');
 // Versao do programa de bloqueio (atualize junto com public/BloqueadorPC.bat)
-const BLOQUEADOR_VERSAO = '1.2';
+const BLOQUEADOR_VERSAO = '1.3';
 const BLOQUEADOR_DATA = '13/11/2026';
-const BLOQUEADOR_NOVIDADES = 'Mostra o progresso da instalação, token visível ao colar e pede para reiniciar o PC no final.';
+const BLOQUEADOR_NOVIDADES = 'Avisa na tela e grava um log quando o bloqueio não consegue abrir (antes falhava em silêncio).';
 
 const cpfFmt = (c: string) => (c?.length === 11 ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}` : c || 'sem CPF');
 
