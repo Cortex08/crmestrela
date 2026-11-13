@@ -1,5 +1,5 @@
 @echo off
-title Bloqueador de PC - Instalador - versao 1.5
+title Bloqueador de PC - Instalador - versao 1.6
 :: ===========================================================
 ::  BLOQUEADOR DE PC - arquivo unico
 ::  Duplo clique: instala tudo (baixa o Python se precisar).
@@ -28,7 +28,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VersaoBloqueador = '1.5'
+$VersaoBloqueador = '1.6'
 $Desinstalar = ($env:BPC_ARG -match 'desinstalar')
 $Reconf = ($env:BPC_ARG -match 'reconfigurar')
 
@@ -569,6 +569,7 @@ if ($Desinstalar) {
     Escrever 'Removendo o bloqueador...' Yellow
     Unregister-ScheduledTask -TaskName $Tarefa -Confirm:$false -ErrorAction SilentlyContinue
     Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'BloqueadorPC' -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run' -Name 'BloqueadorPC' -ErrorAction SilentlyContinue
     Get-Process pythonw -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Remove-Item $Pasta -Recurse -Force -ErrorAction SilentlyContinue
     $resp = Read-Host 'Apagar tambem a configuracao deste PC, o cache de logins e o log? (S/N)'
@@ -651,6 +652,10 @@ if (-not (Test-Path $pythonw)) { throw "pythonw.exe nao encontrado em $(Split-Pa
 # Segunda forma de iniciar (chave Run da maquina): abre junto com o login, antes e mais rapido que a tarefa agendada
 $cmdRun = "`"$pythonw`" `"$Pasta\bloqueador.py`""
 New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'BloqueadorPC' -Value $cmdRun -PropertyType String -Force | Out-Null
+# Esta terceira chave (politica do Explorer) NAO sofre o atraso de ~10 s que o Windows aplica aos programas de inicializacao comuns
+$polRun = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run'
+if (-not (Test-Path $polRun)) { New-Item -Path $polRun -Force | Out-Null }
+New-ItemProperty -Path $polRun -Name 'BloqueadorPC' -Value $cmdRun -PropertyType String -Force | Out-Null
 $acao      = New-ScheduledTaskAction -Execute $pythonw -Argument "`"$Pasta\bloqueador.py`"" -WorkingDirectory $Pasta
 $gatilho   = New-ScheduledTaskTrigger -AtLogOn
 $principal = New-ScheduledTaskPrincipal -GroupId 'S-1-5-32-545' -RunLevel Limited
