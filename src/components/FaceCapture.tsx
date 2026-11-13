@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, ScanFace, CameraOff, CheckCircle2 } from 'lucide-react';
-import { lerRosto, AMOSTRAS, type EstadoRosto } from '@/lib/face';
+import { lerRosto, carregarFaceApi, AMOSTRAS, type EstadoRosto } from '@/lib/face';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -36,6 +36,7 @@ export function FaceCapture({ open, onOpenChange, titulo, descricao, onRosto, on
     let stream: MediaStream | null = null;
     setErro(null); setEnviando(false); setEstado(null); setCarregando('Abrindo a câmera…');
 
+    carregarFaceApi().catch(() => {}); // começa já, em paralelo com a câmera
     (async () => {
       let desc: number[];
       try {

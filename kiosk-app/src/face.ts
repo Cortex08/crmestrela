@@ -14,11 +14,20 @@ export function carregarFaceApi(): Promise<any> {
         faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
         faceapi.nets.faceRecognitionNet.loadFromUri('./models'),
       ]);
-      // aquecimento: a primeira inferência é lenta (compila a GPU). Fazemos agora, antes de a pessoa precisar.
+      // aquecimento REAL das 3 redes (a primeira inferência compila a GPU e é lenta; fazemos antes de a pessoa chegar).
+      // Antes só o detector era aquecido (imagem em branco não tem rosto), e as redes de pontos e de reconhecimento
+      // compilavam com a pessoa já parada na frente da câmera.
       try {
-        const c = document.createElement('canvas'); c.width = c.height = 160;
-        await faceapi.detectSingleFace(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })).withFaceLandmarks().withFaceDescriptor();
-      } catch { /* sem rosto na imagem em branco: esperado */ }
+        const ruido = (n: number) => {
+          const c = document.createElement('canvas'); c.width = c.height = n;
+          const x = c.getContext('2d')!; const im = x.createImageData(n, n);
+          for (let i = 0; i < im.data.length; i += 4) { im.data[i] = im.data[i + 1] = im.data[i + 2] = (Math.random() * 255) | 0; im.data[i + 3] = 255; }
+          x.putImageData(im, 0, 0); return c;
+        };
+        await faceapi.detectSingleFace(ruido(192), new faceapi.TinyFaceDetectorOptions({ inputSize: 192 }));
+        await faceapi.nets.faceLandmark68Net.detectLandmarks(ruido(112));
+        await faceapi.nets.faceRecognitionNet.computeFaceDescriptor(ruido(150));
+      } catch { /* aquecimento é opcional */ }
       return faceapi;
     })().catch((e) => { carregando = null; throw e; });
   }
@@ -78,14 +87,14 @@ function conferirEnquadramento(video: HTMLVideoElement, det: any): string | null
   return null;
 }
 
-export const AMOSTRAS = 3;
+export const AMOSTRAS = 2;
 
 /**
  * Enquadra o rosto, coleta poucas leituras nítidas e devolve o descritor médio.
  * Otimizado para celulares fracos: 1 detecção leve para checar o enquadramento + 1 leitura completa por amostra
  * (antes eram 2 detecções pesadas por amostra), tolerando quadros ruins sem recomeçar do zero.
  */
-export async function lerRosto(video: HTMLVideoElement, onEstado: (e: EstadoRosto) => void, cancelado: () => boolean, limiteMs = 30000): Promise<number[]> {
+export async function lerRosto(video: HTMLVideoElement, onEstado: (e: EstadoRosto) => void, cancelado: () => boolean, limiteMs = 15000): Promise<number[]> {
   const faceapi = await carregarFaceApi();
   const leve = new faceapi.TinyFaceDetectorOptions({ inputSize: 192, scoreThreshold: 0.4 });
   const leitura = new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.5 });
@@ -97,7 +106,10 @@ export async function lerRosto(video: HTMLVideoElement, onEstado: (e: EstadoRost
   // um quadro ruim isolado não zera o progresso; só 3 seguidos
   const ruim = (dica: string, espera = 40) => { falhas++; if (falhas >= 3) { pronto = false; amostras.length = 0; } emitir('posicionar', false, dica); return pausa(espera); };
 
+  // Meta: terminar em poucos segundos. Passou de 4,5 s com ao menos 1 leitura boa, usa o que já tem.
+  const TEMPO_MAX_LEITURA = 4500;
   while (Date.now() - ini < limiteMs && amostras.length < AMOSTRAS) {
+    if (amostras.length >= 1 && Date.now() - ini > TEMPO_MAX_LEITURA) break;
     if (cancelado()) throw new Error('cancelado');
     if (video.readyState < 2 || !video.videoWidth) { await pausa(60); continue; }
     quadro++;
@@ -125,10 +137,10 @@ export async function lerRosto(video: HTMLVideoElement, onEstado: (e: EstadoRost
     emitir('lendo', true, amostras.length >= AMOSTRAS ? 'Pronto!' : 'Lendo seu rosto, fique parado…');
   }
 
-  if (amostras.length < AMOSTRAS) throw new Error(`Não consegui ler seu rosto com clareza. ${ultimaDica}. Tente de novo.`);
+  if (amostras.length < 1) throw new Error(`Não consegui ler seu rosto com clareza. ${ultimaDica}. Tente de novo.`);
 
   const media = (xs: Float32Array[]) => Float32Array.from({ length: 128 }, (_, i) => xs.reduce((t, a) => t + a[i], 0) / xs.length);
-  if (euclid(amostras[0], amostras[amostras.length - 1]) > 0.55 || euclid(amostras[0], media(amostras)) > 0.5) {
+  if (amostras.length > 1 && euclid(amostras[0], amostras[amostras.length - 1]) > 0.55) {
     throw new Error('A leitura ficou instável. Fique parado, olhando para a câmera, e tente de novo.');
   }
   return Array.from(media(amostras));

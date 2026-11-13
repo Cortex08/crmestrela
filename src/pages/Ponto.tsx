@@ -19,6 +19,7 @@ import { cn, friendlyError } from '@/lib/utils';
 import { STATUS_PONTO, statusPonto, fmtHora, fmtMin, intervalToMin } from '@/lib/rh';
 import { downloadCSV } from '@/lib/csv';
 import { FaceCapture } from '@/components/FaceCapture';
+import { carregarFaceApi } from '@/lib/face';
 
 const MEU = '__meu__';
 type Campo = 'entrada' | 'saida_almoco' | 'retorno_almoco' | 'saida';
@@ -52,6 +53,7 @@ export default function Ponto() {
   const { canRead, canUpdate } = usePermissions();
   const gestor = canRead('funcionarios');
   const qc = useQueryClient();
+  useEffect(() => { carregarFaceApi().catch(() => {}); }, []); // prepara o reconhecimento antes de alguém chegar
   const [agora, setAgora] = useState(new Date());
   const [mes, setMes] = useState(new Date());
   const [sel, setSel] = useState(MEU);

@@ -6,6 +6,7 @@ import { LogIn, LogOut, Coffee, Play, ScanFace, CheckCircle2, LogOut as Sair } f
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/Logo';
 import { FaceCapture } from '@/components/FaceCapture';
+import { carregarFaceApi } from '@/lib/face';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { friendlyError } from '@/lib/utils';
@@ -26,6 +27,7 @@ export default function PontoQuiosque() {
   const [aberto, setAberto] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
 
+  useEffect(() => { carregarFaceApi().catch(() => {}); }, []); // prepara o reconhecimento antes de alguém chegar
   useEffect(() => { const t = setInterval(() => setAgora(new Date()), 1000); return () => clearInterval(t); }, []);
   // baixa e aquece o reconhecimento facial em segundo plano, para a câmera abrir rápido
   useEffect(() => { const t = setTimeout(() => { import('@/lib/face').then((m) => m.carregarFaceApi()).catch(() => {}); }, 800); return () => clearTimeout(t); }, []);
