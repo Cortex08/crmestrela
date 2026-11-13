@@ -9,7 +9,6 @@
     "android:sync": "npm run build && npx cap sync android"
   },
   "dependencies": {
-    "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/android": "^6.2.0",
     "@capacitor/core": "^6.2.0",
     "@supabase/supabase-js": "^2.45.0"
