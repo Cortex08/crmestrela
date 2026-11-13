@@ -29,9 +29,9 @@ const rpc = async (nome: string, args?: Record<string, unknown>) => {
 };
 const dh = (v?: string | null) => (v ? format(new Date(v), "dd/MM/yyyy HH:mm", { locale: ptBR }) : '—');
 // Versao do programa de bloqueio (atualize junto com public/BloqueadorPC.bat)
-const BLOQUEADOR_VERSAO = '1.4';
+const BLOQUEADOR_VERSAO = '1.5';
 const BLOQUEADOR_DATA = '13/11/2026';
-const BLOQUEADOR_NOVIDADES = 'O bloqueio agora abre direto ao ligar o PC (mais rápido e sem depender do PowerShell) e avisa na tela se der erro.';
+const BLOQUEADOR_NOVIDADES = 'Novo visual de vidro, abre junto com o login por dois caminhos (mais rápido e confiável) e nunca abre duas telas.';
 
 const cpfFmt = (c: string) => (c?.length === 11 ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}` : c || 'sem CPF');
 
