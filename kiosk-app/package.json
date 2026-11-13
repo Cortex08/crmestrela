@@ -1,0 +1,23 @@
+{
+  "name": "ponto-quiosque",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "modelos": "node scripts/copiar-modelos.mjs",
+    "build": "node scripts/icones.mjs && node scripts/copiar-modelos.mjs && tsc --noEmit && vite build",
+    "android:sync": "npm run build && npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "@vladmandic/face-api": "^1.7.14"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "appId": "br.com.estreladedavi.ponto",
+  "appName": "Ponto Estrela",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false }
+}

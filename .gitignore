@@ -1,0 +1,7 @@
+node_modules
+dist
+*.local
+kiosk-app/node_modules
+kiosk-app/dist
+kiosk-app/public/models
+.env
