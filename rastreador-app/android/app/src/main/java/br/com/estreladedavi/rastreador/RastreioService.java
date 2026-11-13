@@ -65,16 +65,28 @@ public class RastreioService extends Service {
         }
     };
 
+    /** No Android 14+ o servico de localizacao so pode iniciar com a permissao de localizacao ja concedida. */
+    static boolean podeIniciar(Context c) {
+        return androidx.core.content.ContextCompat.checkSelfPermission(c, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            || androidx.core.content.ContextCompat.checkSelfPermission(c, android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
     @Override public void onCreate() {
         super.onCreate();
         arm = new Armazem(this);
-        lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        criarCanal();
-        Notification n = notificacao("Localização enviada somente no horário de trabalho.");
-        if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
-        else startForeground(1, n);
-        rodando = true;
-        h.post(ciclo);
+        try {
+            lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            criarCanal();
+            Notification n = notificacao("Localização enviada somente no horário de trabalho.");
+            if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+            else startForeground(1, n);
+            rodando = true;
+            h.post(ciclo);
+        } catch (Throwable t) {
+            arm.put("erro", "Não foi possível iniciar o serviço: " + t.getClass().getSimpleName() + " " + t.getMessage());
+            rodando = false;
+            stopSelf();
+        }
     }
 
     @Override public int onStartCommand(Intent i, int f, int id) { return START_STICKY; }

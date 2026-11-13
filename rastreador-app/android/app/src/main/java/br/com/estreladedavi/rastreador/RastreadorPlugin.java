@@ -32,6 +32,7 @@ public class RastreadorPlugin extends Plugin {
     }
 
     private void iniciarServico() {
+        if (!RastreioService.podeIniciar(getContext())) return;   // sem permissao de localizacao nao inicia (evita travar o app)
         ContextCompat.startForegroundService(getContext(), new Intent(getContext(), RastreioService.class));
     }
 
@@ -75,6 +76,7 @@ public class RastreadorPlugin extends Plugin {
         r.put("ultimoEnvio", a.getL("ultimo_envio", 0));
         r.put("ultimoGps", a.getL("ultimo_gps", 0));
         r.put("erro", a.get("erro", ""));
+        r.put("crash", a.get("crash", ""));
         r.put("inicio", a.get("inicio", ""));
         r.put("fim", a.get("fim", ""));
         r.put("nome", a.get("nome", ""));
@@ -94,7 +96,10 @@ public class RastreadorPlugin extends Plugin {
     }
 
     @PermissionCallback
-    private void aposLocal(PluginCall call) { call.resolve(); }
+    private void aposLocal(PluginCall call) {
+        try { if (new Armazem(getContext()).getB("ativo", false)) iniciarServico(); } catch (Throwable ignored) { }
+        call.resolve();
+    }
 
     @PluginMethod
     public void pedirSegundoPlano(PluginCall call) {

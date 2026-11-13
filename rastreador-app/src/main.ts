@@ -3,7 +3,7 @@ import { SUPABASE_URL, SUPABASE_KEY } from './config';
 
 interface Status {
   ativo: boolean; rodando: boolean; naJanela: boolean; pendentes: number; ultimoEnvio: number; ultimoGps: number;
-  erro: string; inicio: string; fim: string; nome: string;
+  erro: string; crash: string; inicio: string; fim: string; nome: string;
   permLocal: boolean; permSegundoPlano: boolean; semRestricaoBateria: boolean;
 }
 interface Rast {
@@ -60,7 +60,7 @@ async function painel() {
   if (s.permLocal && !s.permSegundoPlano) { await Rastreador.pedirSegundoPlano(); s = await Rastreador.status(); }
   if (!s.semRestricaoBateria) { await Rastreador.pedirSemRestricaoBateria(); }
   await Rastreador.garantirServico();
-  desenhar();
+  void desenhar();
   setInterval(desenhar, 5000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { void Rastreador.garantirServico(); void desenhar(); } });
 }
@@ -73,6 +73,7 @@ async function desenhar() {
   else if (!s.permSegundoPlano) avisos.push('Falta permitir a localização "O tempo todo" (toque em Abrir configurações > Permissões > Localização).');
   if (!s.semRestricaoBateria) avisos.push('A bateria está restringindo o app: toque em Abrir configurações > Bateria > Sem restrições.');
   if (s.erro) avisos.push(s.erro);
+  if (s.crash) avisos.push('Última falha do app: ' + s.crash.slice(0, 300));
   app.innerHTML = `
     <h1>Celular Estrela</h1><p>${s.nome || ''} · rastreio somente no horário de trabalho.</p>
     <div class="card">

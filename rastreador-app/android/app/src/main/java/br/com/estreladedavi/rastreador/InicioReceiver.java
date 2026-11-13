@@ -9,7 +9,7 @@ import androidx.core.content.ContextCompat;
 public class InicioReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context ctx, Intent intent) {
         try {
-            if (new Armazem(ctx).getB("ativo", false)) {
+            if (new Armazem(ctx).getB("ativo", false) && RastreioService.podeIniciar(ctx)) {
                 ContextCompat.startForegroundService(ctx, new Intent(ctx, RastreioService.class));
             }
         } catch (Throwable ignored) { }
