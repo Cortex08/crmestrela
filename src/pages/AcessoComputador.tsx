@@ -29,9 +29,9 @@ const rpc = async (nome: string, args?: Record<string, unknown>) => {
 };
 const dh = (v?: string | null) => (v ? format(new Date(v), "dd/MM/yyyy HH:mm", { locale: ptBR }) : '—');
 // Versao do programa de bloqueio (atualize junto com public/BloqueadorPC.bat)
-const BLOQUEADOR_VERSAO = '2.0';
+const BLOQUEADOR_VERSAO = '2.1';
 const BLOQUEADOR_DATA = '16/11/2026';
-const BLOQUEADOR_NOVIDADES = 'Desbloqueio só com o CPF (sem senha). Funcionário ativo entra; tudo fica registrado.';
+const BLOQUEADOR_NOVIDADES = 'Só desbloqueia quem já bateu o ponto de entrada hoje (e ainda não bateu a saída). Entra só com o CPF.';
 
 const cpfFmt = (c: string) => (c?.length === 11 ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}` : c || 'sem CPF');
 
