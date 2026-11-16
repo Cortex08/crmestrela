@@ -42,6 +42,7 @@ const blank = {
   nome: '', email: '', telefone: '', data_nascimento: '', endereco: '', cpf: '', rg: '',
   departamento: 'comercial', cargo: 'prospeccao', status: 'ativo', tipo_contrato: '',
   data_admissao: '', data_saida: '', horario_trabalho: '', pausas: '',
+  hr_entrada: '', hr_saida_almoco: '', hr_retorno_almoco: '', hr_saida: '',
   salario_fixo: '', comissao_acordada: '', chave_pix: '', banco: '', agencia: '', conta: '',
 };
 
@@ -51,13 +52,14 @@ export function FuncionarioForm({ funcionario, onSuccess, onCancel }: Props) {
   const editing = !!funcionario;
   const [loading, setLoading] = useState(false);
   const [f, setF] = useState(blank);
+  const [dias, setDias] = useState<number[]>([1, 2, 3, 4, 5]);
   const [criarConta, setCriarConta] = useState(false);
   const [senha, setSenha] = useState('');
   const [roles, setRoles] = useState<string[]>([]);
   const [vincularId, setVincularId] = useState('');
 
   useEffect(() => {
-    if (!funcionario) return setF(blank);
+    if (!funcionario) { setDias([1, 2, 3, 4, 5]); return setF(blank); }
     const s = (v: any) => (v === null || v === undefined ? '' : String(v));
     setF({
       nome: s(funcionario.nome), email: s(funcionario.email), telefone: s(funcionario.telefone), data_nascimento: s(funcionario.data_nascimento),
@@ -66,7 +68,10 @@ export function FuncionarioForm({ funcionario, onSuccess, onCancel }: Props) {
       data_saida: s(funcionario.data_saida), horario_trabalho: s(funcionario.horario_trabalho), pausas: s(funcionario.pausas),
       salario_fixo: s(funcionario.salario_fixo), comissao_acordada: s(funcionario.comissao_acordada), chave_pix: s(funcionario.chave_pix),
       banco: s(funcionario.banco), agencia: s(funcionario.agencia), conta: s(funcionario.conta),
+      hr_entrada: s(funcionario.hr_entrada).slice(0, 5), hr_saida_almoco: s(funcionario.hr_saida_almoco).slice(0, 5),
+      hr_retorno_almoco: s(funcionario.hr_retorno_almoco).slice(0, 5), hr_saida: s(funcionario.hr_saida).slice(0, 5),
     });
+    setDias(Array.isArray(funcionario.dias_trabalho) && funcionario.dias_trabalho.length ? funcionario.dias_trabalho : [1, 2, 3, 4, 5]);
   }, [funcionario]);
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }));
 
@@ -107,7 +112,12 @@ export function FuncionarioForm({ funcionario, onSuccess, onCancel }: Props) {
         nome: f.nome.trim().slice(0, 200), email: n(f.email.toLowerCase()), telefone: n(f.telefone), data_nascimento: n(f.data_nascimento),
         endereco: n(f.endereco), cpf: cpf || null, rg: n(f.rg), departamento: f.departamento, cargo: f.cargo, status: f.status,
         tipo_contrato: n(f.tipo_contrato), data_admissao: n(f.data_admissao), data_saida: n(f.data_saida),
-        horario_trabalho: n(f.horario_trabalho), pausas: n(f.pausas), salario_fixo: salario, comissao_acordada: n(f.comissao_acordada),
+        horario_trabalho: f.hr_entrada && f.hr_saida
+          ? (f.hr_saida_almoco && f.hr_retorno_almoco ? `${f.hr_entrada} às ${f.hr_saida_almoco} - ${f.hr_retorno_almoco} às ${f.hr_saida}` : `${f.hr_entrada} às ${f.hr_saida}`)
+          : n(f.horario_trabalho),
+        pausas: f.hr_saida_almoco && f.hr_retorno_almoco ? `${f.hr_saida_almoco} às ${f.hr_retorno_almoco}` : n(f.pausas),
+        hr_entrada: n(f.hr_entrada), hr_saida_almoco: n(f.hr_saida_almoco), hr_retorno_almoco: n(f.hr_retorno_almoco), hr_saida: n(f.hr_saida),
+        dias_trabalho: dias.length ? dias : [1, 2, 3, 4, 5], salario_fixo: salario, comissao_acordada: n(f.comissao_acordada),
         chave_pix: n(f.chave_pix), banco: n(f.banco), agencia: n(f.agencia), conta: n(f.conta),
       };
       if (vincularId) payload.user_id = vincularId;
@@ -244,9 +254,29 @@ export function FuncionarioForm({ funcionario, onSuccess, onCancel }: Props) {
       ))}
 
       {section(<Clock className="h-5 w-5" />, 'Horário de Trabalho', (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {field('horario_trabalho', 'Horário de Trabalho', { placeholder: 'Ex: 09h às 12:25h - 13:25h às 18h' })}
-          {field('pausas', 'Pausas', { placeholder: 'Ex: 12:25h às 13:25h' })}
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {field('hr_entrada', 'Entrada', { type: 'time' })}
+            {field('hr_saida_almoco', 'Início do almoço', { type: 'time' })}
+            {field('hr_retorno_almoco', 'Fim do almoço', { type: 'time' })}
+            {field('hr_saida', 'Saída', { type: 'time' })}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Dias de trabalho</Label>
+            <div className="flex flex-wrap gap-1">
+              {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d, i) => {
+                const n = i + 1, on = dias.includes(n);
+                return (
+                  <Button key={d} type="button" size="sm" variant={on ? 'default' : 'outline'}
+                    onClick={() => setDias((x) => (on ? x.filter((v) => v !== n) : [...x, n].sort()))}>{d}</Button>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            No início do almoço o computador da pessoa é bloqueado e mostra "Horário de almoço"; ele libera sozinho quando ela bate o ponto de retorno.
+            Deixe o almoço em branco para não bloquear.
+          </p>
         </div>
       ))}
 
