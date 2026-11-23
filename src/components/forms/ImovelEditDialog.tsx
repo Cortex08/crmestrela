@@ -27,7 +27,7 @@ export const ImovelEditDialog = ({ property, open, onOpenChange, onSuccess, rasc
   useEffect(() => {
     if (!property) return;
     setFormData({
-      codigo: str(property.codigo), titulo: str(property.titulo), tipo: property.tipo || 'venda', status: property.status || 'disponivel',
+      codigo: str(property.codigo), titulo: str(property.titulo), tipo: property.tipo || 'locacao', status: property.status || 'disponivel',
       endereco: str(property.endereco), numero: str(property.numero), complemento: str(property.complemento),
       bairro: str(property.bairro), cidade: str(property.cidade), estado: str(property.estado), cep: str(property.cep),
       quartos: str(property.quartos), banheiros: str(property.banheiros), vagas: str(property.vagas),
@@ -45,7 +45,7 @@ export const ImovelEditDialog = ({ property, open, onOpenChange, onSuccess, rasc
     if (!property) return;
     const missing = checkMissingImovelFields(formData);
     // no rascunho só exige o que identifica o imóvel (já vem preenchido da prospecção)
-    const essenciais = ['codigo', 'titulo', 'endereco', 'bairro', 'cidade', 'estado'];
+    const essenciais = ['codigo', 'titulo', 'endereco', 'bairro'];
     const faltando = parcial ? missing.filter((f) => essenciais.includes(f as string)) : missing;
     if (faltando.length) {
       setMissingFields(faltando);

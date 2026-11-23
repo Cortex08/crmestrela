@@ -46,13 +46,18 @@ export interface ImovelFormData {
   descricao: string; status?: string;
 }
 
+// Por enquanto a imobiliária só trabalha com aluguel, em São Paulo/SP — por isso esses valores
+// não aparecem mais no formulário; eles continuam preenchidos sozinhos.
+export const CIDADE_PADRAO = 'São Paulo';
+export const ESTADO_PADRAO = 'SP';
+
 export const initialFormData: ImovelFormData = {
-  codigo: '', titulo: '', tipo: 'venda', endereco: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '', cep: '',
+  codigo: '', titulo: '', tipo: 'locacao', endereco: '', numero: '', complemento: '', bairro: '', cidade: CIDADE_PADRAO, estado: ESTADO_PADRAO, cep: '',
   quartos: '', banheiros: '', vagas: '', aceita_pets: false, mobiliado: false, area_util: '', area_total: '',
   valor_venda: '', valor_aluguel: '', valor_condominio: '', valor_iptu: '', descricao: '',
 };
 
-export const requiredImovelFields: (keyof ImovelFormData)[] = ['codigo', 'titulo', 'endereco', 'bairro', 'cidade', 'estado'];
+export const requiredImovelFields: (keyof ImovelFormData)[] = ['codigo', 'titulo', 'endereco', 'bairro'];
 
 export const checkMissingImovelFields = (d: ImovelFormData) =>
   requiredImovelFields.filter((f) => !String(d[f] ?? '').trim());
@@ -66,8 +71,8 @@ export const imovelPayload = (d: ImovelFormData, photos: string[]) => ({
   numero: d.numero.trim() || null,
   complemento: d.complemento.trim() || null,
   bairro: d.bairro.trim(),
-  cidade: d.cidade.trim(),
-  estado: d.estado.trim().toUpperCase().slice(0, 2),
+  cidade: d.cidade.trim() || CIDADE_PADRAO,
+  estado: (d.estado.trim() || ESTADO_PADRAO).toUpperCase().slice(0, 2),
   cep: d.cep.trim() || null,
   quartos: toInt(d.quartos),
   banheiros: toInt(d.banheiros),
@@ -103,6 +108,14 @@ export const ImovelFormFields = ({
   const debouncedCep = useDebounce(formData.cep, 500);
 
   const set = <K extends keyof ImovelFormData>(k: K, v: ImovelFormData[K]) => setFormData((prev) => ({ ...prev, [k]: v }));
+
+  // Cidade e UF não aparecem mais no formulário (por enquanto só trabalhamos em São Paulo/SP),
+  // mas um imóvel importado antigo pode ter vindo sem esses dados — preenche sozinho se faltar.
+  useEffect(() => {
+    if (!formData.cidade.trim() || !formData.estado.trim()) {
+      setFormData((prev) => ({ ...prev, cidade: prev.cidade.trim() || CIDADE_PADRAO, estado: prev.estado.trim() || ESTADO_PADRAO }));
+    }
+  }, [formData.cidade, formData.estado, setFormData]);
 
   const handleCepSearch = useCallback(async (cep: string) => {
     if (cep.replace(/\D/g, '').length !== 8) {
@@ -171,21 +184,9 @@ export const ImovelFormFields = ({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="codigo" className={labelCls('codigo')}>Código * {req('codigo')}</Label>
-          <Input id="codigo" maxLength={50} value={formData.codigo} onChange={(e) => set('codigo', e.target.value)} className={inputCls('codigo')} />
-        </div>
-        <div className="space-y-2">
-          <Label>Tipo *</Label>
-          <Select value={formData.tipo} onValueChange={(v: 'venda' | 'locacao') => set('tipo', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="venda">Venda</SelectItem>
-              <SelectItem value="locacao">Locação</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="codigo" className={labelCls('codigo')}>Código * {req('codigo')}</Label>
+        <Input id="codigo" maxLength={50} value={formData.codigo} onChange={(e) => set('codigo', e.target.value)} className={inputCls('codigo')} />
       </div>
 
       {isEditing && (
@@ -267,17 +268,6 @@ export const ImovelFormFields = ({
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 space-y-2">
-          <Label htmlFor="cidade" className={labelCls('cidade')}>Cidade * {req('cidade')}</Label>
-          <Input id="cidade" value={formData.cidade} onChange={(e) => set('cidade', e.target.value)} className={inputCls('cidade')} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="estado" className={labelCls('estado')}>UF * {req('estado')}</Label>
-          <Input id="estado" maxLength={2} value={formData.estado} onChange={(e) => set('estado', e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))} className={inputCls('estado')} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
         {(['quartos', 'banheiros', 'vagas'] as const).map((f) => (
           <div key={f} className="space-y-2">
             <Label htmlFor={f} className="capitalize">{f}</Label>
@@ -297,37 +287,9 @@ export const ImovelFormFields = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="area_util">Área Útil (m²)</Label>
-          <Input id="area_util" type="number" step="0.01" min="0" value={formData.area_util} onChange={(e) => set('area_util', e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="area_total">Área Total (m²)</Label>
-          <Input id="area_total" type="number" step="0.01" min="0" value={formData.area_total} onChange={(e) => set('area_total', e.target.value)} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="valor_venda">Valor Venda (R$)</Label>
-          <Input id="valor_venda" type="number" step="0.01" min="0" value={formData.valor_venda} onChange={(e) => set('valor_venda', e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="valor_aluguel">Valor Aluguel (R$)</Label>
-          <Input id="valor_aluguel" type="number" step="0.01" min="0" value={formData.valor_aluguel} onChange={(e) => set('valor_aluguel', e.target.value)} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="valor_condominio">Condomínio (R$)</Label>
-          <Input id="valor_condominio" type="number" step="0.01" min="0" value={formData.valor_condominio} onChange={(e) => set('valor_condominio', e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="valor_iptu">IPTU (R$)</Label>
-          <Input id="valor_iptu" type="number" step="0.01" min="0" value={formData.valor_iptu} onChange={(e) => set('valor_iptu', e.target.value)} />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="valor_aluguel">Valor Aluguel (R$)</Label>
+        <Input id="valor_aluguel" type="number" step="0.01" min="0" value={formData.valor_aluguel} onChange={(e) => set('valor_aluguel', e.target.value)} />
       </div>
 
       <div className="space-y-2">

@@ -2,6 +2,7 @@ import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { seletorDeArquivoAberto } from '@/lib/dialogFileGuard';
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -26,12 +27,16 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onPointerDownOutside, onInteractOutside, onFocusOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       aria-describedby={undefined}
+      // não fecha sozinho quando a pessoa está no seletor de arquivos do Windows (ver dialogFileGuard.ts)
+      onPointerDownOutside={(e) => { if (seletorDeArquivoAberto()) { e.preventDefault(); return; } onPointerDownOutside?.(e); }}
+      onInteractOutside={(e) => { if (seletorDeArquivoAberto()) { e.preventDefault(); return; } onInteractOutside?.(e); }}
+      onFocusOutside={(e) => { if (seletorDeArquivoAberto()) { e.preventDefault(); return; } onFocusOutside?.(e); }}
       className={cn(
         'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-1rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-2xl border border-white/70 bg-background/80 p-6 shadow-2xl backdrop-blur-2xl dark:border-white/10 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg',
         className,
