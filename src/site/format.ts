@@ -38,3 +38,20 @@ export const num = (v: string | null) => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : undefined;
 };
+
+/**
+ * Link "Quero esse imóvel": abre o WhatsApp da imobiliária já com a mensagem pronta
+ * (código, título, valor e link do anúncio). A pessoa só aperta enviar.
+ */
+export const linkInteresse = (numero: string | null | undefined, i: Pick<SiteImovel, 'codigo' | 'titulo' | 'tipo' | 'valor_venda' | 'valor_aluguel'>) => {
+  if (!numero) return '';
+  const v = precoDe(i);
+  const url = typeof window !== 'undefined' ? `${window.location.origin}/site/imovel/${encodeURIComponent(i.codigo)}` : '';
+  const texto = [
+    'Olá! Me interessei por esse imóvel:',
+    `*${i.codigo} - ${i.titulo}*`,
+    v ? `${moeda(v)}${i.tipo === 'locacao' ? '/mês' : ''}` : '',
+    url,
+  ].filter(Boolean).join('\n');
+  return linkWhatsApp(numero, texto);
+};

@@ -7,7 +7,7 @@ import { SiteLayout, usePagina } from './SiteLayout';
 import { GradeImoveis } from './PropertyCard';
 import { ContactForm } from './ContactForm';
 import { buscarImovel, buscarImoveis, useSiteConfig } from './api';
-import { precoDe, moeda, finalidadeTexto, local, linkWhatsApp } from './format';
+import { precoDe, moeda, finalidadeTexto, local, linkInteresse } from './format';
 
 function Lightbox({ fotos, inicio, onClose }: { fotos: string[]; inicio: number; onClose: () => void }) {
   const [i, setI] = useState(inicio);
@@ -148,8 +148,8 @@ export default function SiteImovel() {
   const preco = precoDe(im);
   const area = im.area_util || im.area_total;
   const texto = `Olá! Tenho interesse no imóvel ${im.codigo} - ${im.titulo}.`;
-  // a mensagem já vai com o link do anúncio, para quem atende saber de qual imóvel se trata
-  const zap = cfg?.whatsapp ? linkWhatsApp(cfg.whatsapp, `${texto}\n${window.location.origin}/site/imovel/${encodeURIComponent(im.codigo)}`) : '';
+  // "Quero esse imóvel": abre o WhatsApp da imobiliária com a mensagem pronta; a pessoa só aperta enviar
+  const zap = linkInteresse(cfg?.whatsapp, im);
 
   async function compartilhar() {
     const url = window.location.href;
@@ -203,9 +203,17 @@ export default function SiteImovel() {
                 {!!im.valor_iptu && <div><span>IPTU</span><span>{moeda(im.valor_iptu)}</span></div>}
               </div>
             )}
-            {zap && <a className="s-btn s-btn-zap s-btn-zap-grande" href={zap} target="_blank" rel="noopener noreferrer"><IconeWhatsApp size={22} /> Chamar no WhatsApp</a>}
-            <h3 style={{ fontSize: 26, marginTop: 6 }}>Receber contato</h3>
-            <ContactForm origem="contato" codigo={im.codigo} mensagemInicial={texto} rotulo="Quero ser contatado" />
+            {zap ? (
+              <>
+                <a className="s-btn s-btn-zap s-btn-zap-grande" href={zap} target="_blank" rel="noopener noreferrer"><IconeWhatsApp size={22} /> Quero esse imóvel</a>
+                <p className="s-pequeno">Abre o WhatsApp com a mensagem pronta. É só enviar que a nossa equipe já te atende.</p>
+              </>
+            ) : (
+              <>
+                <h3 style={{ fontSize: 26, marginTop: 6 }}>Receber contato</h3>
+                <ContactForm origem="contato" codigo={im.codigo} mensagemInicial={texto} rotulo="Quero ser contatado" />
+              </>
+            )}
             <button className="s-compartilhar" onClick={compartilhar}>{copiado ? 'Link copiado' : 'Compartilhar este imóvel'}</button>
           </aside>
         </div>
@@ -223,7 +231,7 @@ export default function SiteImovel() {
             <b>{preco ? moeda(preco) : 'Consulte'}</b>
             <span>{preco && im.tipo === 'locacao' ? 'por mês' : `Código ${im.codigo}`}</span>
           </div>
-          <a className="s-btn s-btn-zap" href={zap} target="_blank" rel="noopener noreferrer"><IconeWhatsApp size={22} /> Chamar no WhatsApp</a>
+          <a className="s-btn s-btn-zap" href={zap} target="_blank" rel="noopener noreferrer"><IconeWhatsApp size={22} /> Quero esse imóvel</a>
         </div>
       )}
       {luz !== null && <Lightbox fotos={fotos} inicio={luz} onClose={() => setLuz(null)} />}

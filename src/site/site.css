@@ -237,7 +237,7 @@
 
 /* Barra fixa no rodapé do celular, na página do imóvel: preço + botão grande para chamar no WhatsApp.
    No computador some, porque o botão já fica na caixa lateral fixa. */
-.site .s-btn-zap, .site .s-btn-zap:hover { color: #fff; }
+.site .s-btn-zap, .site .s-btn-zap:hover, .site .s-zap-flutuante { color: #fff; }
 .s-btn-zap svg { flex: 0 0 auto; }
 .s-btn-zap-grande { font-size: 16px; padding-top: 15px; padding-bottom: 15px; }
 .s-barra-zap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: flex; align-items: center; gap: 14px;
@@ -249,3 +249,7 @@
 .s-barra-zap .s-btn { flex: 1; justify-content: center; padding: 14px 16px; font-size: 16px; white-space: nowrap; }
 .site:has(.s-barra-zap) { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
 @media (min-width: 980px) { .s-barra-zap { display: none; } .site:has(.s-barra-zap) { padding-bottom: 0; } }
+
+/* card de imóvel: o link ocupa o card e o botão "Quero esse imóvel" fica no rodapé dele */
+.s-card-link { display: flex; flex-direction: column; flex: 1; }
+.s-card-zap { margin: 0 20px 20px; min-height: 46px; font-size: 15px; }
