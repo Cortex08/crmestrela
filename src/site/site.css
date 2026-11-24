@@ -182,17 +182,18 @@
 /* imóvel */
 .s-trilha { font-size: 14px; color: var(--nevoa); padding: 24px 0 16px; }
 .s-trilha a:hover { color: var(--tinta); text-decoration: underline; }
-.s-galeria { display: grid; gap: 10px; grid-template-columns: 1fr; }
-@media (min-width: 800px) { .s-galeria { grid-template-columns: 2fr 1fr; grid-template-rows: repeat(2, 1fr); height: 480px; } .s-galeria .principal { grid-row: 1 / span 2; } }
-/* No celular a galeria fica em coluna única: sem altura fixa, o object-fit:cover da foto não tinha efeito
-   (a altura do botão dependia do conteúdo), então cada foto aparecia esticada no seu próprio tamanho.
-   Com aspect-ratio, todo botão tem uma altura previsível e as fotos ficam cortadas de forma uniforme. */
-.s-galeria button { position: relative; padding: 0; border: 0; background: var(--tinta-2); cursor: zoom-in; overflow: hidden; aspect-ratio: 4 / 3; min-height: 220px; border-radius: var(--r-md); }
-.s-galeria .principal { aspect-ratio: 16 / 11; }
-@media (min-width: 800px) { .s-galeria button, .s-galeria .principal { aspect-ratio: auto; } }
-.s-galeria img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s; }
-.s-galeria button:hover img { transform: scale(1.04); }
-.s-mais-fotos { position: absolute; right: 14px; bottom: 14px; background: rgba(11,26,51,.5); border: 1px solid rgba(255,255,255,.35); color: #fff; font-size: 13px; font-weight: 700; padding: 9px 16px; border-radius: 999px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+/* Uma foto principal grande em cima, e abaixo uma fileira de miniaturas que passa de lado (arrastando
+   o dedo no celular, ou com o mouse/trackpad no computador). Clicar em qualquer uma abre a foto ampliada. */
+.s-galeria { display: grid; gap: 10px; }
+.s-foto-principal { position: relative; display: block; width: 100%; padding: 0; border: 0; background: var(--tinta-2); cursor: zoom-in; overflow: hidden; aspect-ratio: 4 / 3; border-radius: var(--r-md); }
+@media (min-width: 700px) { .s-foto-principal { aspect-ratio: 16 / 9; } }
+.s-foto-principal img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.s-contador { position: absolute; right: 14px; bottom: 14px; background: rgba(11,26,51,.6); border: 1px solid rgba(255,255,255,.35); color: #fff; font-size: 13px; font-weight: 700; padding: 7px 14px; border-radius: 999px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.s-miniaturas { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.s-miniaturas::-webkit-scrollbar { display: none; }
+.s-miniaturas button { flex: 0 0 auto; scroll-snap-align: start; width: 84px; aspect-ratio: 4 / 3; padding: 0; border-radius: var(--r-sm); border: 2px solid transparent; background: var(--tinta-2); overflow: hidden; cursor: pointer; opacity: .6; transition: opacity .2s, border-color .2s; }
+.s-miniaturas button.ativa { opacity: 1; border-color: var(--azul); }
+.s-miniaturas img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .s-imovel-grade { display: grid; gap: 40px; grid-template-columns: 1fr; padding: 36px 0 72px; }
 @media (min-width: 980px) { .s-imovel-grade { grid-template-columns: 1fr 380px; gap: 56px; align-items: start; } }
 .s-imovel-grade h1 { font-size: clamp(28px, 4vw, 42px); }

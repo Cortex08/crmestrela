@@ -36,6 +36,7 @@ export default function SiteImovel() {
   const { data: cfg } = useSiteConfig();
   const [luz, setLuz] = useState<number | null>(null);
   const [copiado, setCopiado] = useState(false);
+  const [atual, setAtual] = useState(0);
 
   const { data: im, isLoading } = useQuery({ queryKey: ['site-imovel', codigo], queryFn: () => buscarImovel(codigo), staleTime: 60_000 });
   const { data: parecidos } = useQuery({
@@ -45,6 +46,8 @@ export default function SiteImovel() {
   });
 
   usePagina(im ? `${im.titulo} | ${cfg?.nome || 'Estrela de Davi'}` : 'Imóvel | Estrela de Davi', im ? `${finalidadeTexto(im.tipo)} - ${local(im)}` : undefined);
+
+  useEffect(() => { setAtual(0); }, [codigo]);
 
   if (isLoading) return <SiteLayout><div className="s-wrap" style={{ padding: '80px 20px' }}>Carregando imóvel…</div></SiteLayout>;
   if (!im) return (
@@ -83,12 +86,26 @@ export default function SiteImovel() {
 
         {fotos.length > 0 ? (
           <div className="s-galeria">
-            {fotos.slice(0, 3).map((f, idx) => (
-              <button key={f} className={idx === 0 ? 'principal' : ''} onClick={() => setLuz(idx)} aria-label={`Ampliar foto ${idx + 1}`}>
-                <img src={f} alt={idx === 0 ? im.titulo : `Foto ${idx + 1} de ${im.titulo}`} loading={idx === 0 ? 'eager' : 'lazy'} />
-                {idx === Math.min(2, fotos.length - 1) && fotos.length > 1 && <span className="s-mais-fotos">Ver as {fotos.length} fotos</span>}
-              </button>
-            ))}
+            <button className="s-foto-principal" onClick={() => setLuz(atual)} aria-label="Ampliar foto">
+              <img src={fotos[atual]} alt={im.titulo} loading="eager" />
+              {fotos.length > 1 && <span className="s-contador">{atual + 1} / {fotos.length}</span>}
+            </button>
+            {fotos.length > 1 && (
+              <div className="s-miniaturas" role="list" aria-label="Outras fotos">
+                {fotos.map((f, idx) => (
+                  <button
+                    key={f}
+                    role="listitem"
+                    className={idx === atual ? 'ativa' : ''}
+                    onClick={() => setAtual(idx)}
+                    aria-label={`Ver foto ${idx + 1} de ${fotos.length}`}
+                    aria-current={idx === atual}
+                  >
+                    <img src={f} alt="" loading="lazy" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="s-card-foto" style={{ aspectRatio: '16 / 6' }}><div className="s-sem-foto"><Building2 size={64} /></div></div>
