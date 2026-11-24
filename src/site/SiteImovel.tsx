@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, X, Building2, MessageCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Building2 } from 'lucide-react';
+import { IconeWhatsApp } from './IconeWhatsApp';
 import { SiteLayout, usePagina } from './SiteLayout';
 import { GradeImoveis } from './PropertyCard';
 import { ContactForm } from './ContactForm';
@@ -147,7 +148,8 @@ export default function SiteImovel() {
   const preco = precoDe(im);
   const area = im.area_util || im.area_total;
   const texto = `Olá! Tenho interesse no imóvel ${im.codigo} - ${im.titulo}.`;
-  const zap = cfg?.whatsapp ? linkWhatsApp(cfg.whatsapp, texto) : '';
+  // a mensagem já vai com o link do anúncio, para quem atende saber de qual imóvel se trata
+  const zap = cfg?.whatsapp ? linkWhatsApp(cfg.whatsapp, `${texto}\n${window.location.origin}/site/imovel/${encodeURIComponent(im.codigo)}`) : '';
 
   async function compartilhar() {
     const url = window.location.href;
@@ -159,8 +161,8 @@ export default function SiteImovel() {
   }
 
   return (
-    <SiteLayout>
-      <div className="s-wrap">
+    <SiteLayout semZapFlutuante={!!zap}>
+      <div className={zap ? 's-wrap s-com-barra' : 's-wrap'}>
         <nav className="s-trilha" aria-label="Trilha">
           <Link to="/site">Início</Link> / <Link to={`/site/imoveis?finalidade=${im.tipo}`}>{im.tipo === 'venda' ? 'Comprar' : 'Alugar'}</Link> / {im.codigo}
         </nav>
@@ -201,7 +203,7 @@ export default function SiteImovel() {
                 {!!im.valor_iptu && <div><span>IPTU</span><span>{moeda(im.valor_iptu)}</span></div>}
               </div>
             )}
-            {zap && <a className="s-btn s-btn-zap" href={zap} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} /> Conversar no WhatsApp</a>}
+            {zap && <a className="s-btn s-btn-zap s-btn-zap-grande" href={zap} target="_blank" rel="noopener noreferrer"><IconeWhatsApp size={22} /> Chamar no WhatsApp</a>}
             <h3 style={{ fontSize: 26, marginTop: 6 }}>Receber contato</h3>
             <ContactForm origem="contato" codigo={im.codigo} mensagemInicial={texto} rotulo="Quero ser contatado" />
             <button className="s-compartilhar" onClick={compartilhar}>{copiado ? 'Link copiado' : 'Compartilhar este imóvel'}</button>
@@ -215,6 +217,15 @@ export default function SiteImovel() {
           </section>
         )}
       </div>
+      {zap && (
+        <div className="s-barra-zap" role="region" aria-label="Falar sobre este imóvel">
+          <div className="s-barra-preco">
+            <b>{preco ? moeda(preco) : 'Consulte'}</b>
+            <span>{preco && im.tipo === 'locacao' ? 'por mês' : `Código ${im.codigo}`}</span>
+          </div>
+          <a className="s-btn s-btn-zap" href={zap} target="_blank" rel="noopener noreferrer"><IconeWhatsApp size={22} /> Chamar no WhatsApp</a>
+        </div>
+      )}
       {luz !== null && <Lightbox fotos={fotos} inicio={luz} onClose={() => setLuz(null)} />}
     </SiteLayout>
   );

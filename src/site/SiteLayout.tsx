@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Menu, X, MessageCircle, Instagram, Facebook } from 'lucide-react';
+import { Menu, X, Instagram, Facebook } from 'lucide-react';
+import { IconeWhatsApp } from './IconeWhatsApp';
 import { Logo } from '@/components/Logo';
 import { useSiteConfig } from './api';
 import { linkWhatsApp } from './format';
@@ -33,7 +34,8 @@ const itens: [string, string][] = [
   ['/site/contato', 'Contato'],
 ];
 
-export function SiteLayout({ children }: { children: ReactNode }) {
+/** semZapFlutuante: a página já tem a própria barra de WhatsApp (ex.: página do imóvel) */
+export function SiteLayout({ children, semZapFlutuante = false }: { children: ReactNode; semZapFlutuante?: boolean }) {
   const { data: cfg } = useSiteConfig();
   const [aberto, setAberto] = useState(false);
   const { pathname, search } = useLocation();
@@ -108,9 +110,9 @@ export function SiteLayout({ children }: { children: ReactNode }) {
         </div>
       </footer>
 
-      {zap && (
+      {zap && !semZapFlutuante && (
         <a className="s-zap-flutuante" href={zap} target="_blank" rel="noopener noreferrer" aria-label="Conversar no WhatsApp">
-          <MessageCircle size={26} />
+          <IconeWhatsApp size={28} />
         </a>
       )}
     </div>
