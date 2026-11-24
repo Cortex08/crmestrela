@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, X, Building2, MessageCircle } from 'lucide-react';
@@ -18,9 +18,20 @@ function Lightbox({ fotos, inicio, onClose }: { fotos: string[]; inicio: number;
     const o = document.body.style.overflow; document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', h); document.body.style.overflow = o; };
   }, [ant, prox, onClose]);
+  // arrastar o dedo para o lado troca a foto (no celular)
+  const toque = useRef<number | null>(null);
   return (
-    <div className="s-luz" role="dialog" aria-modal="true" aria-label="Galeria de fotos">
-      <img src={fotos[i]} alt={`Foto ${i + 1} de ${fotos.length}`} />
+    <div
+      className="s-luz" role="dialog" aria-modal="true" aria-label="Galeria de fotos"
+      onTouchStart={(e) => { toque.current = e.touches[0].clientX; }}
+      onTouchEnd={(e) => {
+        if (toque.current === null || fotos.length < 2) return;
+        const dx = e.changedTouches[0].clientX - toque.current;
+        toque.current = null;
+        if (dx > 50) ant(); else if (dx < -50) prox();
+      }}
+    >
+      <img src={fotos[i]} alt={`Foto ${i + 1} de ${fotos.length}`} draggable={false} />
       <button className="fechar" onClick={onClose} aria-label="Fechar"><X size={22} /></button>
       {fotos.length > 1 && <>
         <button className="ant" onClick={ant} aria-label="Foto anterior"><ChevronLeft size={24} /></button>
@@ -31,12 +42,83 @@ function Lightbox({ fotos, inicio, onClose }: { fotos: string[]; inicio: number;
   );
 }
 
+/**
+ * Foto principal que desliza com o dedo (uma por vez) + fileira de miniaturas embaixo.
+ * Tocar na foto principal abre a foto ampliada.
+ */
+function Galeria({ fotos, titulo, onAmpliar }: { fotos: string[]; titulo: string; onAmpliar: (i: number) => void }) {
+  const [atual, setAtual] = useState(0);
+  const trilho = useRef<HTMLDivElement>(null);
+  const miniaturas = useRef<HTMLDivElement>(null);
+
+  // volta para a primeira foto quando troca de imóvel
+  useEffect(() => { setAtual(0); trilho.current?.scrollTo({ left: 0 }); }, [fotos]);
+
+  // mantém a miniatura da foto atual visível na fileira
+  useEffect(() => {
+    const m = miniaturas.current?.children[atual] as HTMLElement | undefined;
+    const box = miniaturas.current;
+    if (!m || !box) return;
+    const alvo = m.offsetLeft - (box.clientWidth - m.clientWidth) / 2;
+    box.scrollTo({ left: Math.max(0, alvo), behavior: 'smooth' });
+  }, [atual]);
+
+  const irPara = (i: number) => {
+    const t = trilho.current;
+    if (!t) return;
+    t.scrollTo({ left: i * t.clientWidth, behavior: 'smooth' });
+    setAtual(i);
+  };
+
+  const aoRolar = () => {
+    const t = trilho.current;
+    if (!t || !t.clientWidth) return;
+    const i = Math.round(t.scrollLeft / t.clientWidth);
+    if (i !== atual && i >= 0 && i < fotos.length) setAtual(i);
+  };
+
+  return (
+    <div className="s-galeria">
+      <div className="s-palco">
+        <div className="s-trilho" ref={trilho} onScroll={aoRolar}>
+          {fotos.map((f, idx) => (
+            <button key={f + idx} className="s-slide" onClick={() => onAmpliar(idx)} aria-label={`Ampliar foto ${idx + 1} de ${fotos.length}`}>
+              <img src={f} alt={idx === 0 ? titulo : `Foto ${idx + 1} de ${titulo}`} loading={idx < 2 ? 'eager' : 'lazy'} draggable={false} />
+            </button>
+          ))}
+        </div>
+        {fotos.length > 1 && (
+          <>
+            <button className="s-seta ant" onClick={() => irPara((atual - 1 + fotos.length) % fotos.length)} aria-label="Foto anterior"><ChevronLeft size={22} /></button>
+            <button className="s-seta prox" onClick={() => irPara((atual + 1) % fotos.length)} aria-label="Próxima foto"><ChevronRight size={22} /></button>
+            <span className="s-contador">{atual + 1} / {fotos.length}</span>
+          </>
+        )}
+      </div>
+      {fotos.length > 1 && (
+        <div className="s-miniaturas" ref={miniaturas} aria-label="Todas as fotos">
+          {fotos.map((f, idx) => (
+            <button
+              key={f + idx}
+              className={idx === atual ? 'ativa' : ''}
+              onClick={() => irPara(idx)}
+              aria-label={`Ver foto ${idx + 1} de ${fotos.length}`}
+              aria-current={idx === atual}
+            >
+              <img src={f} alt="" loading="lazy" draggable={false} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SiteImovel() {
   const { codigo = '' } = useParams();
   const { data: cfg } = useSiteConfig();
   const [luz, setLuz] = useState<number | null>(null);
   const [copiado, setCopiado] = useState(false);
-  const [atual, setAtual] = useState(0);
 
   const { data: im, isLoading } = useQuery({ queryKey: ['site-imovel', codigo], queryFn: () => buscarImovel(codigo), staleTime: 60_000 });
   const { data: parecidos } = useQuery({
@@ -47,7 +129,6 @@ export default function SiteImovel() {
 
   usePagina(im ? `${im.titulo} | ${cfg?.nome || 'Estrela de Davi'}` : 'Imóvel | Estrela de Davi', im ? `${finalidadeTexto(im.tipo)} - ${local(im)}` : undefined);
 
-  useEffect(() => { setAtual(0); }, [codigo]);
 
   if (isLoading) return <SiteLayout><div className="s-wrap" style={{ padding: '80px 20px' }}>Carregando imóvel…</div></SiteLayout>;
   if (!im) return (
@@ -85,28 +166,7 @@ export default function SiteImovel() {
         </nav>
 
         {fotos.length > 0 ? (
-          <div className="s-galeria">
-            <button className="s-foto-principal" onClick={() => setLuz(atual)} aria-label="Ampliar foto">
-              <img src={fotos[atual]} alt={im.titulo} loading="eager" />
-              {fotos.length > 1 && <span className="s-contador">{atual + 1} / {fotos.length}</span>}
-            </button>
-            {fotos.length > 1 && (
-              <div className="s-miniaturas" role="list" aria-label="Outras fotos">
-                {fotos.map((f, idx) => (
-                  <button
-                    key={f}
-                    role="listitem"
-                    className={idx === atual ? 'ativa' : ''}
-                    onClick={() => setAtual(idx)}
-                    aria-label={`Ver foto ${idx + 1} de ${fotos.length}`}
-                    aria-current={idx === atual}
-                  >
-                    <img src={f} alt="" loading="lazy" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <Galeria fotos={fotos} titulo={im.titulo} onAmpliar={setLuz} />
         ) : (
           <div className="s-card-foto" style={{ aspectRatio: '16 / 6' }}><div className="s-sem-foto"><Building2 size={64} /></div></div>
         )}

@@ -184,23 +184,29 @@
 .s-trilha a:hover { color: var(--tinta); text-decoration: underline; }
 /* Uma foto principal grande em cima, e abaixo uma fileira de miniaturas que passa de lado (arrastando
    o dedo no celular, ou com o mouse/trackpad no computador). Clicar em qualquer uma abre a foto ampliada. */
-.s-galeria { display: grid; gap: 10px; }
-.s-foto-principal { position: relative; display: block; width: 100%; padding: 0; border: 0; background: var(--tinta-2); cursor: zoom-in; overflow: hidden; aspect-ratio: 4 / 3; border-radius: var(--r-md); }
-@media (min-width: 700px) { .s-foto-principal { aspect-ratio: 16 / 9; } }
-.s-foto-principal img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.s-contador { position: absolute; right: 14px; bottom: 14px; background: rgba(11,26,51,.6); border: 1px solid rgba(255,255,255,.35); color: #fff; font-size: 13px; font-weight: 700; padding: 7px 14px; border-radius: 999px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-.s-miniaturas { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.s-galeria { display: grid; gap: 10px; min-width: 0; }
+.s-palco { position: relative; border-radius: var(--r-md); overflow: hidden; background: var(--tinta-2); }
+.s-trilho { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.s-trilho::-webkit-scrollbar { display: none; }
+.s-slide { flex: 0 0 100%; scroll-snap-align: center; scroll-snap-stop: always; aspect-ratio: 4 / 3; padding: 0; border: 0; background: none; cursor: zoom-in; }
+@media (min-width: 700px) { .s-slide { aspect-ratio: 16 / 9; max-height: 560px; } }
+.s-slide img { width: 100%; height: 100%; object-fit: cover; display: block; -webkit-user-select: none; user-select: none; }
+.s-seta { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: rgba(11,26,51,.45); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.s-seta.ant { left: 10px; }
+.s-seta.prox { right: 10px; }
+.s-contador { position: absolute; right: 12px; bottom: 12px; pointer-events: none; background: rgba(11,26,51,.6); color: #fff; font-size: 13px; font-weight: 700; padding: 6px 12px; border-radius: 999px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.s-miniaturas { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .s-miniaturas::-webkit-scrollbar { display: none; }
-.s-miniaturas button { flex: 0 0 auto; scroll-snap-align: start; width: 84px; aspect-ratio: 4 / 3; padding: 0; border-radius: var(--r-sm); border: 2px solid transparent; background: var(--tinta-2); overflow: hidden; cursor: pointer; opacity: .6; transition: opacity .2s, border-color .2s; }
-.s-miniaturas button.ativa { opacity: 1; border-color: var(--azul); }
+.s-miniaturas button { flex: 0 0 auto; width: 76px; aspect-ratio: 4 / 3; padding: 0; border-radius: 12px; border: 0; outline: 2px solid transparent; outline-offset: -2px; background: var(--tinta-2); overflow: hidden; cursor: pointer; opacity: .55; transition: opacity .2s, outline-color .2s; }
+@media (min-width: 700px) { .s-miniaturas button { width: 104px; } }
+.s-miniaturas button.ativa { opacity: 1; outline-color: var(--azul); }
 .s-miniaturas img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .s-imovel-grade { display: grid; gap: 40px; grid-template-columns: 1fr; padding: 36px 0 72px; }
 @media (min-width: 980px) { .s-imovel-grade { grid-template-columns: 1fr 380px; gap: 56px; align-items: start; } }
 .s-imovel-grade h1 { font-size: clamp(28px, 4vw, 42px); }
-.s-fatos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 28px 0; }
-@media (min-width: 640px) { .s-fatos { grid-template-columns: repeat(4, 1fr); } }
-.s-fatos div { padding: 18px; background: var(--pedra); border-radius: var(--r-md); }
-.s-fatos b { display: block; font-size: 26px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+.s-fatos { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 10px; margin: 24px 0; }
+.s-fatos div { padding: 14px 16px; background: var(--pedra); border-radius: var(--r-md); }
+.s-fatos b { display: block; font-size: 24px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
 .s-fatos span { font-size: 13px; color: var(--nevoa); }
 /* position:sticky só faz sentido a partir de 980px, quando essa caixa fica ao lado do conteúdo
    (.s-imovel-grade vira 2 colunas nesse breakpoint). No celular ela fica empilhada embaixo do
@@ -216,12 +222,12 @@
 .s-compartilhar { background: none; border: 0; color: var(--nevoa); font: 600 14px 'Manrope', sans-serif; cursor: pointer; text-decoration: underline; padding: 8px 0; text-align: left; }
 
 /* lightbox */
-.s-luz { position: fixed; inset: 0; z-index: 100; background: rgba(8,14,24,.82); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); display: flex; align-items: center; justify-content: center; }
-.s-luz img { max-width: 92vw; max-height: 84vh; object-fit: contain; border-radius: var(--r-md); }
+.s-luz { position: fixed; inset: 0; z-index: 100; background: rgba(5,9,16,.97); touch-action: pan-y; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); display: flex; align-items: center; justify-content: center; }
+.s-luz img { max-width: 100vw; max-height: 80vh; -webkit-user-select: none; user-select: none; object-fit: contain; border-radius: var(--r-md); }
 .s-luz button { position: absolute; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.3); color: #fff; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
 .s-luz .fechar { top: 16px; right: 16px; }
-.s-luz .ant { left: 16px; top: 50%; transform: translateY(-50%); }
-.s-luz .prox { right: 16px; top: 50%; transform: translateY(-50%); }
+.s-luz .ant { left: 10px; top: 50%; transform: translateY(-50%); }
+.s-luz .prox { right: 10px; top: 50%; transform: translateY(-50%); }
 .s-luz .cont { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,.75); font-size: 14px; }
 
 .s-form { display: grid; gap: 14px; position: relative; }
