@@ -5,11 +5,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Upload, X, Loader2, CheckCircle2 } from 'lucide-react';
+import { Upload, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, toInt, toNumber } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
-import { uploadPropertyPhoto, FotoPequenaError, FOTO_LADO_MINIMO } from '@/lib/storage';
+import { uploadPropertyPhoto, FotoPequenaError } from '@/lib/storage';
 
 const fetchCepData = async (cep: string) => {
   const limpo = cep.replace(/\D/g, '');
@@ -164,27 +164,26 @@ export const ImovelFormFields = ({
       toast.error('Máximo de 40 fotos por imóvel');
       return;
     }
+    await enviarFotos(files, false);
+  };
+
+  const [baixas, setBaixas] = useState<FotoPequenaError[]>([]);
+  // aceitarBaixa: a pessoa já foi avisada e escolheu "Enviar mesmo assim"
+  const enviarFotos = async (files: File[], aceitarBaixa: boolean) => {
     setUploadingPhotos(true);
     const urls: string[] = [];
-    const pequenas: string[] = [];
+    const pequenas: FotoPequenaError[] = [];
     try {
       for (const file of files) {
         try {
-          urls.push(await uploadPropertyPhoto(file));
+          urls.push(await uploadPropertyPhoto(file, { aceitarBaixa }));
         } catch (err) {
-          // foto pequena demais não trava as outras: avisamos no final
-          if (err instanceof FotoPequenaError) pequenas.push(err.message); else throw err;
+          // foto pequena não trava as outras: avisamos no final e deixamos a pessoa decidir
+          if (err instanceof FotoPequenaError) pequenas.push(err); else throw err;
         }
       }
-      if (pequenas.length) {
-        toast.error(
-          pequenas.length === 1 ? 'Uma foto não foi enviada por estar em baixa qualidade' : `${pequenas.length} fotos não foram enviadas por estarem em baixa qualidade`,
-          {
-            description: `${pequenas.slice(0, 3).join('; ')}${pequenas.length > 3 ? '…' : ''}. Envie a foto original da câmera, não print nem foto salva do WhatsApp ou de outro site (mínimo ${FOTO_LADO_MINIMO} pixels).`,
-            duration: 12000,
-          },
-        );
-      }
+      // fotos pequenas ficam esperando a decisão da pessoa, num aviso dentro do próprio formulário
+      if (pequenas.length) setBaixas((prev) => [...prev, ...pequenas]);
       if (urls.length) toast.success(urls.length === 1 ? 'Foto enviada' : `${urls.length} fotos enviadas`);
     } catch (err: any) {
       toast.error(err?.message || 'Erro ao fazer upload das fotos');
@@ -324,6 +323,26 @@ export const ImovelFormFields = ({
           </div>
           <input id="photo-upload" type="file" multiple accept="image/png,image/jpeg,image/webp" onChange={handlePhotoUpload} className="hidden" disabled={uploadingPhotos} />
         </label>
+
+        {baixas.length > 0 && (
+          <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+            <p className="flex items-center gap-2 font-semibold">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {baixas.length === 1 ? 'Essa foto está em baixa qualidade e vai ficar borrada no site' : `${baixas.length} fotos estão em baixa qualidade e vão ficar borradas no site`}
+            </p>
+            <p className="mt-1 break-words text-xs opacity-80">{baixas.slice(0, 4).map((b) => b.message).join(', ')}{baixas.length > 4 ? '…' : ''}</p>
+            <p className="mt-2 text-xs">
+              Se a foto é do Facebook, abra ela em tela cheia e use <b>⋯ &gt; Baixar</b> (no celular: <b>⋯ &gt; Salvar foto</b>) para pegar a versão grande. Print de tela e foto salva do WhatsApp ficam pequenos.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" disabled={uploadingPhotos}
+                onClick={() => { const arquivos = baixas.map((b) => b.arquivo); setBaixas([]); void enviarFotos(arquivos, true); }}>
+                Enviar mesmo assim
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setBaixas([])}>Não enviar</Button>
+            </div>
+          </div>
+        )}
 
         {photos.length > 0 && (
           <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 gap-4">

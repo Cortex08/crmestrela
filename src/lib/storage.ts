@@ -26,9 +26,11 @@ export const FOTO_LADO_MINIMO = 800;
 /** Fotos maiores que isso (celulares tiram ~4000px) são reduzidas: o site fica rápido e a foto continua nítida. */
 const FOTO_LADO_MAXIMO = 2000;
 
-export class FotoPequenaError extends Error {}
+export class FotoPequenaError extends Error {
+  constructor(msg: string, public arquivo: File) { super(msg); }
+}
 
-async function prepararFotoImovel(file: File): Promise<File> {
+async function prepararFotoImovel(file: File, aceitarBaixa = false): Promise<File> {
   let bmp: ImageBitmap;
   try {
     bmp = await createImageBitmap(file);
@@ -37,9 +39,9 @@ async function prepararFotoImovel(file: File): Promise<File> {
   }
   const { width: w, height: h } = bmp;
   const maior = Math.max(w, h);
-  if (maior < FOTO_LADO_MINIMO) {
+  if (maior < FOTO_LADO_MINIMO && !aceitarBaixa) {
     bmp.close();
-    throw new FotoPequenaError(`"${file.name}" é pequena demais (${w}×${h} pixels)`);
+    throw new FotoPequenaError(`"${file.name}" (${w}×${h} pixels)`, file);
   }
   if (maior <= FOTO_LADO_MAXIMO) { bmp.close(); return file; }
   const escala = FOTO_LADO_MAXIMO / maior;
@@ -57,10 +59,10 @@ async function prepararFotoImovel(file: File): Promise<File> {
 }
 
 /** Envia foto de imóvel (bucket público, usado no site). Retorna URL pública. */
-export async function uploadPropertyPhoto(original: File): Promise<string> {
+export async function uploadPropertyPhoto(original: File, opcoes: { aceitarBaixa?: boolean } = {}): Promise<string> {
   if (!ALLOWED_PHOTO_TYPES.includes(original.type)) throw new Error('Use fotos PNG, JPG ou WEBP');
   if (original.size > 20 * 1024 * 1024) throw new Error('Foto maior que 20 MB');
-  const file = await prepararFotoImovel(original);
+  const file = await prepararFotoImovel(original, !!opcoes.aceitarBaixa);
   if (file.size > 10 * 1024 * 1024) throw new Error('Foto maior que 10 MB');
   const path = randomName(file);
   const { error } = await supabase.storage.from('property-photos').upload(path, file, { contentType: file.type });
