@@ -184,7 +184,12 @@
 .s-trilha a:hover { color: var(--tinta); text-decoration: underline; }
 .s-galeria { display: grid; gap: 10px; grid-template-columns: 1fr; }
 @media (min-width: 800px) { .s-galeria { grid-template-columns: 2fr 1fr; grid-template-rows: repeat(2, 1fr); height: 480px; } .s-galeria .principal { grid-row: 1 / span 2; } }
-.s-galeria button { position: relative; padding: 0; border: 0; background: var(--tinta-2); cursor: zoom-in; overflow: hidden; min-height: 220px; border-radius: var(--r-md); }
+/* No celular a galeria fica em coluna única: sem altura fixa, o object-fit:cover da foto não tinha efeito
+   (a altura do botão dependia do conteúdo), então cada foto aparecia esticada no seu próprio tamanho.
+   Com aspect-ratio, todo botão tem uma altura previsível e as fotos ficam cortadas de forma uniforme. */
+.s-galeria button { position: relative; padding: 0; border: 0; background: var(--tinta-2); cursor: zoom-in; overflow: hidden; aspect-ratio: 4 / 3; min-height: 220px; border-radius: var(--r-md); }
+.s-galeria .principal { aspect-ratio: 16 / 11; }
+@media (min-width: 800px) { .s-galeria button, .s-galeria .principal { aspect-ratio: auto; } }
 .s-galeria img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s; }
 .s-galeria button:hover img { transform: scale(1.04); }
 .s-mais-fotos { position: absolute; right: 14px; bottom: 14px; background: rgba(11,26,51,.5); border: 1px solid rgba(255,255,255,.35); color: #fff; font-size: 13px; font-weight: 700; padding: 9px 16px; border-radius: 999px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
@@ -196,9 +201,13 @@
 .s-fatos div { padding: 18px; background: var(--pedra); border-radius: var(--r-md); }
 .s-fatos b { display: block; font-size: 26px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
 .s-fatos span { font-size: 13px; color: var(--nevoa); }
-.s-lateral { position: sticky; top: 104px; padding: 28px; border-radius: var(--r-lg); display: grid; gap: 14px;
+/* position:sticky só faz sentido a partir de 980px, quando essa caixa fica ao lado do conteúdo
+   (.s-imovel-grade vira 2 colunas nesse breakpoint). No celular ela fica empilhada embaixo do
+   conteúdo, e "grudar" na tela fazia essa caixa flutuar por cima da seção de imóveis parecidos. */
+.s-lateral { padding: 28px; border-radius: var(--r-lg); display: grid; gap: 14px;
   background: rgba(255,255,255,.78); border: 1px solid rgba(255,255,255,.95); box-shadow: 0 30px 70px -34px rgba(11,26,51,.5), 0 0 0 1px var(--linha);
   backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%); }
+@media (min-width: 980px) { .s-lateral { position: sticky; top: 104px; } }
 .s-lateral .s-preco { font-size: 34px; }
 .s-linhas { display: grid; gap: 0; margin: 4px 0; }
 .s-linhas div { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--linha); font-size: 15px; }
