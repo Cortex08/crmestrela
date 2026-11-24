@@ -9,7 +9,7 @@ import { Upload, X, Loader2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, toInt, toNumber } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
-import { uploadPropertyPhoto } from '@/lib/storage';
+import { uploadPropertyPhoto, FotoPequenaError, FOTO_LADO_MINIMO } from '@/lib/storage';
 
 const fetchCepData = async (cep: string) => {
   const limpo = cep.replace(/\D/g, '');
@@ -166,9 +166,26 @@ export const ImovelFormFields = ({
     }
     setUploadingPhotos(true);
     const urls: string[] = [];
+    const pequenas: string[] = [];
     try {
-      for (const file of files) urls.push(await uploadPropertyPhoto(file));
-      toast.success('Fotos enviadas com sucesso!');
+      for (const file of files) {
+        try {
+          urls.push(await uploadPropertyPhoto(file));
+        } catch (err) {
+          // foto pequena demais não trava as outras: avisamos no final
+          if (err instanceof FotoPequenaError) pequenas.push(err.message); else throw err;
+        }
+      }
+      if (pequenas.length) {
+        toast.error(
+          pequenas.length === 1 ? 'Uma foto não foi enviada por estar em baixa qualidade' : `${pequenas.length} fotos não foram enviadas por estarem em baixa qualidade`,
+          {
+            description: `${pequenas.slice(0, 3).join('; ')}${pequenas.length > 3 ? '…' : ''}. Envie a foto original da câmera, não print nem foto salva do WhatsApp ou de outro site (mínimo ${FOTO_LADO_MINIMO} pixels).`,
+            duration: 12000,
+          },
+        );
+      }
+      if (urls.length) toast.success(urls.length === 1 ? 'Foto enviada' : `${urls.length} fotos enviadas`);
     } catch (err: any) {
       toast.error(err?.message || 'Erro ao fazer upload das fotos');
     } finally {
