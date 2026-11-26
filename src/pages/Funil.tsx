@@ -4,13 +4,13 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, DollarSign, GripVertical, MoreVertical, Edit, Trash2, UserPlus } from 'lucide-react';
+import { MessageSquare, DollarSign, GripVertical, MoreVertical, Edit, Trash2, UserPlus, CalendarPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { openWhatsapp, hasValidWhatsapp } from '@/lib/whatsapp';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { DealForm, ETAPAS } from '@/components/forms/DealForm';
-import { NovoLeadDialog } from '@/components/forms/NovoLeadDialog';
+import { NovoLeadDialog, LeadExistente } from '@/components/forms/NovoLeadDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { formatCurrency, friendlyError } from '@/lib/utils';
@@ -26,12 +26,18 @@ interface Deal {
   titulo: string;
   etapa: string;
   valor_estimado: number | null;
-  cliente?: { id: string; nome: string; whatsapp: string } | null;
+  observacoes?: string | null;
+  cliente?: { id: string; nome: string; whatsapp: string; interesse?: string | null } | null;
   imovel?: { codigo: string; titulo: string } | null;
   corretor?: { nome: string } | null;
 }
 
-const DealCard = ({ deal, onEdit, onDelete, canUpdate, canDelete }: { deal: Deal; onEdit: () => void; onDelete: () => void; canUpdate: boolean; canDelete: boolean }) => {
+// etapas em que a pessoa ainda não tem visita marcada
+const SEM_VISITA = ['novo_lead', 'qualificando'];
+const procuraDe = (d: Deal) => d.cliente?.interesse || (d.observacoes?.startsWith('Procura:') ? d.observacoes.replace(/^Procura:\s*/, '') : null);
+
+const DealCard = ({ deal, onEdit, onDelete, onVisita, canUpdate, canDelete }: { deal: Deal; onEdit: () => void; onDelete: () => void; onVisita: () => void; canUpdate: boolean; canDelete: boolean }) => {
+  const procura = procuraDe(deal);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: deal.id, data: { etapa: deal.etapa }, disabled: !canUpdate });
   return (
     <Card ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }} className="card-premium hover:shadow-lg transition-all">
@@ -58,11 +64,17 @@ const DealCard = ({ deal, onEdit, onDelete, canUpdate, canDelete }: { deal: Deal
       </CardHeader>
       <CardContent className="space-y-2 p-4 pt-0">
         <p className="text-xs text-muted-foreground"><strong>Cliente:</strong> {deal.cliente?.nome || 'N/A'}</p>
+        {procura && <p className="text-xs text-muted-foreground line-clamp-2"><strong>Procura:</strong> {procura}</p>}
         {deal.imovel && <p className="text-xs text-muted-foreground"><strong>Imóvel:</strong> {deal.imovel.codigo}</p>}
         {deal.valor_estimado ? (
           <div className="flex items-center text-xs font-semibold text-primary"><DollarSign className="h-3 w-3 mr-1" />{formatCurrency(deal.valor_estimado)}</div>
         ) : null}
         <p className="text-xs text-muted-foreground"><strong>Corretor:</strong> {deal.corretor?.nome || 'N/A'}</p>
+        {canUpdate && SEM_VISITA.includes(deal.etapa) && (
+          <Button size="sm" className="w-full mt-2" onClick={(e) => { e.stopPropagation(); onVisita(); }}>
+            <CalendarPlus className="h-3 w-3 mr-1" />Marcar visita
+          </Button>
+        )}
         {hasValidWhatsapp(deal.cliente?.whatsapp) && (
           <Button size="sm" variant="outline" className="w-full mt-2" onClick={(e) => { e.stopPropagation(); openWhatsapp(deal.cliente!.whatsapp); }}>
             <MessageSquare className="h-3 w-3 mr-1" />WhatsApp
@@ -73,8 +85,8 @@ const DealCard = ({ deal, onEdit, onDelete, canUpdate, canDelete }: { deal: Deal
   );
 };
 
-const Column = ({ etapa, deals, onEdit, onDelete, canUpdate, canDelete }: {
-  etapa: (typeof ETAPAS)[number]; deals: Deal[]; onEdit: (d: Deal) => void; onDelete: (d: Deal) => void; canUpdate: boolean; canDelete: boolean;
+const Column = ({ etapa, deals, onEdit, onDelete, onVisita, canUpdate, canDelete }: {
+  etapa: (typeof ETAPAS)[number]; deals: Deal[]; onEdit: (d: Deal) => void; onDelete: (d: Deal) => void; onVisita: (d: Deal) => void; canUpdate: boolean; canDelete: boolean;
 }) => {
   // A coluna inteira recebe cards, inclusive quando está vazia (no original não recebia)
   const { setNodeRef, isOver } = useDroppable({ id: `col-${etapa.value}`, data: { etapa: etapa.value } });
@@ -94,7 +106,7 @@ const Column = ({ etapa, deals, onEdit, onDelete, canUpdate, canDelete }: {
           {deals.length === 0 ? (
             <div className="flex items-center justify-center h-[100px] text-xs text-muted-foreground">{canUpdate ? 'Arraste cards aqui' : 'Sem negociações'}</div>
           ) : (
-            deals.map((d) => <DealCard key={d.id} deal={d} onEdit={() => onEdit(d)} onDelete={() => onDelete(d)} canUpdate={canUpdate} canDelete={canDelete} />)
+            deals.map((d) => <DealCard key={d.id} deal={d} onEdit={() => onEdit(d)} onDelete={() => onDelete(d)} onVisita={() => onVisita(d)} canUpdate={canUpdate} canDelete={canDelete} />)
           )}
         </div>
       </SortableContext>
@@ -109,6 +121,7 @@ const Funil = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<Deal | null>(null);
   const [novoLead, setNovoLead] = useState(false);
+  const [visitaPara, setVisitaPara] = useState<LeadExistente | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -121,7 +134,7 @@ const Funil = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('deals')
-        .select('id, titulo, etapa, valor_estimado, cliente:clients(id, nome, whatsapp), imovel:properties(codigo, titulo), corretor:profiles(nome)')
+        .select('id, titulo, etapa, valor_estimado, observacoes, cliente:clients(id, nome, whatsapp, interesse), imovel:properties(codigo, titulo), corretor:profiles(nome)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return (data as any[]) as Deal[];
@@ -190,6 +203,7 @@ const Funil = () => {
                   deals={deals.filter((d) => d.etapa === etapa.value)}
                   onEdit={(d) => setEditingId(d.id)}
                   onDelete={setToDelete}
+                  onVisita={(d) => setVisitaPara({ dealId: d.id, nome: d.cliente?.nome || d.titulo, whatsapp: d.cliente?.whatsapp, procura: procuraDe(d) })}
                   canUpdate={canUpdate('funil')}
                   canDelete={canDelete('funil')}
                 />
@@ -225,6 +239,7 @@ const Funil = () => {
         confirmText="Excluir"
       />
       <NovoLeadDialog open={novoLead} onOpenChange={setNovoLead} />
+      <NovoLeadDialog open={!!visitaPara} onOpenChange={(o) => { if (!o) setVisitaPara(null); }} lead={visitaPara} />
     </DashboardLayout>
   );
 };

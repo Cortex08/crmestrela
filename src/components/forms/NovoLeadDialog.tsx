@@ -42,9 +42,12 @@ const HORARIOS = Array.from({ length: 25 }, (_, k) => {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 });
 
-interface Props { open: boolean; onOpenChange: (o: boolean) => void }
+/** Lead que já está no Funil: o assistente começa direto na escolha da casa */
+export interface LeadExistente { dealId: string; nome: string; whatsapp?: string | null; procura?: string | null }
 
-export const NovoLeadDialog = ({ open, onOpenChange }: Props) => {
+interface Props { open: boolean; onOpenChange: (o: boolean) => void; lead?: LeadExistente | null }
+
+export const NovoLeadDialog = ({ open, onOpenChange, lead = null }: Props) => {
   const qc = useQueryClient();
   const { user, roles } = useAuth();
   const isAdmin = roles.includes('admin');
@@ -65,9 +68,9 @@ export const NovoLeadDialog = ({ open, onOpenChange }: Props) => {
   // sempre que abrir, começa do zero
   useEffect(() => {
     if (!open) return;
-    setPasso(1); setNome(''); setZap(''); setProcura(''); setBusca(''); setImovel(null);
+    setPasso(lead ? 2 : 1); setNome(lead?.nome ?? ''); setZap(''); setProcura(lead?.procura ?? ''); setBusca(''); setImovel(null);
     setDia(format(addDays(new Date(), 1), 'yyyy-MM-dd')); setHora('10:00'); setDuracao('60'); setResponsavel('');
-  }, [open]);
+  }, [open, lead]);
 
   const { data: imoveis = [], isLoading: carregandoImoveis } = useQuery({
     queryKey: ['novo-lead-imoveis'],
@@ -88,7 +91,7 @@ export const NovoLeadDialog = ({ open, onOpenChange }: Props) => {
   // avisa se esse WhatsApp já é de alguém cadastrado (o lead vai para a mesma pessoa)
   const { data: jaExiste } = useQuery({
     queryKey: ['novo-lead-cliente', digitos],
-    enabled: open && digitos.length >= 10,
+    enabled: open && !lead && digitos.length >= 10,
     queryFn: async () => {
       const { data } = await supabase.from('clients').select('id, nome, whatsapp').or(`whatsapp.ilike.%${digitos.slice(-8)}%`).limit(5);
       return (data || []).find((c) => {
@@ -136,11 +139,19 @@ export const NovoLeadDialog = ({ open, onOpenChange }: Props) => {
     if (comVisita && (!imovel || !inicio)) return toast.error('Escolha o imóvel, o dia e o horário');
     if (comVisita && inicio && inicio.getTime() < Date.now() - 5 * 60_000) return toast.error('Esse horário já passou');
     setSalvando(true);
-    const { data, error } = await supabase.rpc('funil_novo_lead' as any, {
+    const { data, error } = lead
+      ? await supabase.rpc('funil_marcar_visita' as any, {
+          _deal_id: lead.dealId,
+          _imovel_id: imovel!.id,
+          _inicio: inicio!.toISOString(),
+          _duracao_min: Number(duracao),
+          _responsavel: isAdmin && responsavel ? responsavel : null,
+        })
+      : await supabase.rpc('funil_novo_lead' as any, {
       _nome: nome.trim(),
       _whatsapp: digitos,
       _procura: procura.trim(),
-      _imovel_id: comVisita ? imovel!.id : imovel?.id ?? null,
+      _imovel_id: comVisita ? imovel!.id : null,
       _inicio: comVisita ? inicio!.toISOString() : null,
       _duracao_min: Number(duracao),
       _responsavel: isAdmin && responsavel ? responsavel : null,
@@ -155,29 +166,34 @@ export const NovoLeadDialog = ({ open, onOpenChange }: Props) => {
     toast.success(
       comVisita
         ? `Visita marcada: ${format(inicio!, "EEEE, dd/MM 'às' HH:mm", { locale: ptBR })} no ${imovel!.codigo}`
-        : 'Lead salvo no Funil',
-      { description: comVisita ? 'Já está na Agenda e no Funil em "Visita Agendada".' : novo ? 'Cliente cadastrado como interessado.' : 'Ligado ao cliente que já tinha esse WhatsApp.' },
+        : 'Interesse salvo no Funil',
+      { description: comVisita ? 'Já está na Agenda e no Funil em "Visita Agendada".' : `Está em "Novo Lead". Quando a pessoa escolher a casa, toque em "Marcar visita" no card.${novo ? '' : ' (Ligado ao cliente que já tinha esse WhatsApp.)'}` },
     );
     onOpenChange(false);
   };
 
-  const titulos = { 1: 'Quem é a pessoa?', 2: 'Qual imóvel ela vai visitar?', 3: 'Quando é a visita?' } as const;
+  const titulos = { 1: 'Quem é a pessoa?', 2: lead ? `Qual imóvel ${lead.nome.split(' ')[0]} vai visitar?` : 'Qual imóvel ela vai visitar?', 3: 'Quando é a visita?' } as const;
+  const passos = lead ? [2, 3] : [1, 2, 3];
+  const posicao = passos.indexOf(passo) + 1;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !salvando && onOpenChange(o)}>
-      <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto [&>*]:min-w-0">
         <DialogHeader>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {[1, 2, 3].map((n) => (
+            {passos.map((n) => (
               <span key={n} className={cn('h-1.5 flex-1 rounded-full', n <= passo ? 'bg-primary' : 'bg-muted')} />
             ))}
           </div>
           <DialogTitle className="pt-2">{titulos[passo]}</DialogTitle>
-          <DialogDescription>Passo {passo} de 3</DialogDescription>
+          <DialogDescription>
+            Passo {posicao} de {passos.length}
+            {lead?.procura ? <span className="mt-1 block text-foreground/80">Procura: {lead.procura}</span> : null}
+          </DialogDescription>
         </DialogHeader>
 
         {passo === 1 && (
-          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (passo1Ok) setPasso(2); }}>
+          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (passo1Ok) salvar(false); }}>
             <div className="space-y-1.5">
               <Label htmlFor="nl-nome">Nome</Label>
               <Input id="nl-nome" autoFocus value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Maria Souza" maxLength={120} />
@@ -196,8 +212,14 @@ export const NovoLeadDialog = ({ open, onOpenChange }: Props) => {
               <Textarea id="nl-procura" rows={3} value={procura} onChange={(e) => setProcura(e.target.value)} maxLength={500}
                 placeholder="Ex.: casa de 2 cômodos no Varginha, até R$ 1.200, com vaga para moto" />
             </div>
-            <div className="flex justify-end pt-1">
-              <Button type="submit" disabled={!passo1Ok}>Escolher imóvel</Button>
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+              <Button type="button" variant="outline" disabled={!passo1Ok || salvando} onClick={() => setPasso(2)}>
+                <CalendarCheck className="mr-2 h-4 w-4" />Já marcar visita
+              </Button>
+              <Button type="submit" disabled={!passo1Ok || salvando}>
+                {salvando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                Salvar interesse
+              </Button>
             </div>
           </form>
         )}
@@ -241,13 +263,11 @@ export const NovoLeadDialog = ({ open, onOpenChange }: Props) => {
                 );
               })}
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <Button type="button" variant="ghost" onClick={() => setPasso(1)}><ArrowLeft className="mr-1 h-4 w-4" />Voltar</Button>
-              <Button type="button" variant="outline" disabled={salvando} onClick={() => salvar(false)}>
-                {salvando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                Salvar sem visita
-              </Button>
-            </div>
+            {!lead && (
+              <div className="pt-1">
+                <Button type="button" variant="ghost" onClick={() => setPasso(1)}><ArrowLeft className="mr-1 h-4 w-4" />Voltar</Button>
+              </div>
+            )}
           </div>
         )}
 
