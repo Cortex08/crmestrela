@@ -175,7 +175,7 @@ export default function SiteImovel() {
 
         <div className="s-imovel-grade">
           <div>
-            <p className="s-local">{finalidadeTexto(im.tipo)} · Código {im.codigo}</p>
+            <p className="s-local">{finalidadeTexto(im.tipo)}{im.uso === 'comercial' ? ' · Comercial' : ''} · Código {im.codigo}</p>
             <h1 style={{ marginTop: 8 }}>{im.titulo}</h1>
             <p className="s-local" style={{ marginTop: 10, fontSize: 17 }}>{local(im)}</p>
 

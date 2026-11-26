@@ -27,7 +27,7 @@ export const ImovelEditDialog = ({ property, open, onOpenChange, onSuccess, rasc
   useEffect(() => {
     if (!property) return;
     setFormData({
-      codigo: str(property.codigo), titulo: str(property.titulo), tipo: property.tipo || 'locacao', status: property.status || 'disponivel',
+      codigo: str(property.codigo), titulo: str(property.titulo), tipo: property.tipo || 'locacao', uso: property.uso === 'comercial' ? 'comercial' : 'residencial', status: property.status || 'disponivel',
       endereco: str(property.endereco), numero: str(property.numero), complemento: str(property.complemento),
       bairro: str(property.bairro), cidade: str(property.cidade), estado: str(property.estado), cep: str(property.cep),
       quartos: str(property.quartos), banheiros: str(property.banheiros), vagas: str(property.vagas),
@@ -78,6 +78,7 @@ export const ImovelEditDialog = ({ property, open, onOpenChange, onSuccess, rasc
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <ImovelFormFields
+            imovelId={property?.id ?? null}
             formData={formData}
             setFormData={setFormData}
             photos={photos}

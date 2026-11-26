@@ -16,7 +16,7 @@ export function PropertyCard({ i }: { i: SiteImovel }) {
       <Link to={`/site/imovel/${encodeURIComponent(i.codigo)}`} className="s-card-link">
         <div className="s-card-foto">
           {foto ? <img src={foto} alt={i.titulo} loading="lazy" decoding="async" /> : <div className="s-sem-foto"><Building2 size={44} /></div>}
-          <span className="s-tag">{finalidadeTexto(i.tipo)}</span>
+          <span className="s-tag">{finalidadeTexto(i.tipo)}{i.uso === 'comercial' ? ' · Comercial' : ''}</span>
         </div>
         <div className="s-card-corpo">
           <div className="s-preco">

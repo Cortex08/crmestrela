@@ -59,7 +59,7 @@ const Imoveis = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('properties')
-        .select('id, codigo, titulo, tipo, status, endereco, numero, complemento, bairro, cidade, estado, cep, quartos, banheiros, vagas, area_util, area_total, aceita_pets, mobiliado, valor_venda, valor_aluguel, valor_condominio, valor_iptu, descricao, fotos, published_on_website, created_at')
+        .select('id, codigo, titulo, tipo, uso, status, endereco, numero, complemento, bairro, cidade, estado, cep, quartos, banheiros, vagas, area_util, area_total, aceita_pets, mobiliado, valor_venda, valor_aluguel, valor_condominio, valor_iptu, descricao, fotos, published_on_website, created_at')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
@@ -260,6 +260,7 @@ const Imoveis = () => {
                           </div>
                           <div className="flex flex-col gap-2 items-end">
                             <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">{p.tipo === 'venda' ? 'Venda' : 'Locação'}</span>
+                            {p.uso === 'comercial' && <span className="text-xs px-2 py-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300">Comercial</span>}
                             {p.published_on_website && <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 border border-green-200 whitespace-nowrap">Publicado no Site</span>}
                           </div>
                         </div>
@@ -371,6 +372,7 @@ const Imoveis = () => {
                     <CardContent className="space-y-2 text-sm">
                       <div className="flex justify-between"><span className="text-muted-foreground">Código:</span><span className="font-mono">{details.codigo}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">Tipo:</span><Badge variant="outline">{details.tipo === 'venda' ? 'Venda' : 'Locação'}</Badge></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Uso:</span><Badge variant="outline">{details.uso === 'comercial' ? 'Comercial' : 'Residencial'}</Badge></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">Status:</span><span className={`text-xs px-2 py-1 rounded-full ${statusPill[details.status]}`}>{statusLabels[details.status]}</span></div>
                       <Separator className="my-2" />
                       <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Bed className="h-4 w-4" /> Quartos:</span><span>{details.quartos ?? '—'}</span></div>

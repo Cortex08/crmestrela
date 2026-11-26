@@ -5,7 +5,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Upload, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Upload, Loader2, CheckCircle2, AlertTriangle, Copy } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { FotosOrdenaveis } from './FotosOrdenaveis';
 import { toast } from 'sonner';
 import { cn, toInt, toNumber } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -38,21 +40,34 @@ const searchCepByAddress = async (endereco: string, cidade: string, estado: stri
   }
 };
 
+/** Dois ou mais botões lado a lado, um selecionado (mais rápido que abrir uma lista) */
+const Escolha = ({ valor, onChange, opcoes, ...rest }: { valor: string; onChange: (v: string) => void; opcoes: { v: string; t: string }[]; 'aria-labelledby'?: string }) => (
+  <div role="radiogroup" {...rest} className="grid auto-cols-fr grid-flow-col gap-1 rounded-xl border bg-muted/40 p-1">
+    {opcoes.map((o) => (
+      <button key={o.v} type="button" role="radio" aria-checked={valor === o.v} onClick={() => onChange(o.v)}
+        className={cn('rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+          valor === o.v ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+        {o.t}
+      </button>
+    ))}
+  </div>
+);
+
 export interface ImovelFormData {
-  codigo: string; titulo: string; tipo: 'venda' | 'locacao';
+  codigo: string; titulo: string; tipo: 'venda' | 'locacao'; uso: 'residencial' | 'comercial';
   endereco: string; numero: string; complemento: string; bairro: string; cidade: string; estado: string; cep: string;
   quartos: string; banheiros: string; vagas: string; aceita_pets: boolean; mobiliado: boolean;
   area_util: string; area_total: string; valor_venda: string; valor_aluguel: string; valor_condominio: string; valor_iptu: string;
   descricao: string; status?: string;
 }
 
-// Por enquanto a imobiliária só trabalha com aluguel, em São Paulo/SP — por isso esses valores
-// não aparecem mais no formulário; eles continuam preenchidos sozinhos.
+// A imobiliária trabalha em São Paulo/SP — por isso cidade e UF não aparecem no formulário;
+// eles continuam preenchidos sozinhos.
 export const CIDADE_PADRAO = 'São Paulo';
 export const ESTADO_PADRAO = 'SP';
 
 export const initialFormData: ImovelFormData = {
-  codigo: '', titulo: '', tipo: 'locacao', endereco: '', numero: '', complemento: '', bairro: '', cidade: CIDADE_PADRAO, estado: ESTADO_PADRAO, cep: '',
+  codigo: '', titulo: '', tipo: 'locacao', uso: 'residencial', endereco: '', numero: '', complemento: '', bairro: '', cidade: CIDADE_PADRAO, estado: ESTADO_PADRAO, cep: '',
   quartos: '', banheiros: '', vagas: '', aceita_pets: false, mobiliado: false, area_util: '', area_total: '',
   valor_venda: '', valor_aluguel: '', valor_condominio: '', valor_iptu: '', descricao: '',
 };
@@ -67,6 +82,7 @@ export const imovelPayload = (d: ImovelFormData, photos: string[]) => ({
   codigo: d.codigo.trim(),
   titulo: d.titulo.trim(),
   tipo: d.tipo,
+  uso: d.uso === 'comercial' ? 'comercial' : 'residencial',
   endereco: d.endereco.trim(),
   numero: d.numero.trim() || null,
   complemento: d.complemento.trim() || null,
@@ -98,11 +114,32 @@ interface Props {
   setUploadingPhotos: React.Dispatch<React.SetStateAction<boolean>>;
   isEditing?: boolean;
   missingFields?: string[];
+  /** id do imóvel sendo editado (para o aviso de duplicado não acusar ele mesmo) */
+  imovelId?: string | null;
 }
 
 export const ImovelFormFields = ({
-  formData, setFormData, photos, setPhotos, uploadingPhotos, setUploadingPhotos, isEditing = false, missingFields = [],
+  formData, setFormData, photos, setPhotos, uploadingPhotos, setUploadingPhotos, isEditing = false, missingFields = [], imovelId = null,
 }: Props) => {
+  const [arrastandoArquivo, setArrastandoArquivo] = useState(false);
+
+  // Aviso de imóvel possivelmente duplicado: compara a legenda, o endereço + número e o valor
+  // com os imóveis já cadastrados (função imoveis_parecidos no banco).
+  const legenda = useDebounce(formData.descricao, 700);
+  const endDeb = useDebounce(`${formData.endereco}|${formData.numero}`, 700);
+  const valorAtual = formData.tipo === 'venda' ? formData.valor_venda : formData.valor_aluguel;
+  const valorDeb = useDebounce(valorAtual, 700);
+  const [parecidos, setParecidos] = useState<{ id: string; codigo: string; titulo: string; status: string; motivo: string; semelhanca: number }[]>([]);
+  useEffect(() => {
+    const [end, num] = endDeb.split('|');
+    if (legenda.trim().length < 40 && !(end.trim() && num.trim())) { setParecidos([]); return; }
+    let vivo = true;
+    supabase.rpc('imoveis_parecidos' as any, {
+      _descricao: legenda || null, _endereco: end || null, _numero: num || null,
+      _valor: toNumber(valorDeb), _ignorar: imovelId,
+    }).then(({ data, error }) => { if (vivo) setParecidos(error ? [] : ((data as any[]) || [])); });
+    return () => { vivo = false; };
+  }, [legenda, endDeb, valorDeb, imovelId]);
   const [searchingCep, setSearchingCep] = useState(false);
   const [cepFound, setCepFound] = useState(false);
   const debouncedCep = useDebounce(formData.cep, 500);
@@ -159,6 +196,10 @@ export const ImovelFormFields = ({
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
+    await receberArquivos(files);
+  };
+
+  const receberArquivos = async (files: File[]) => {
     if (files.length === 0) return;
     if (photos.length + files.length > 40) {
       toast.error('Máximo de 40 fotos por imóvel');
@@ -203,6 +244,19 @@ export const ImovelFormFields = ({
       <div className="space-y-2">
         <Label htmlFor="codigo" className={labelCls('codigo')}>Código * {req('codigo')}</Label>
         <Input id="codigo" maxLength={50} value={formData.codigo} onChange={(e) => set('codigo', e.target.value)} className={inputCls('codigo')} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label id="lbl-tipo">Aluguel ou venda</Label>
+          <Escolha aria-labelledby="lbl-tipo" valor={formData.tipo} onChange={(v) => set('tipo', v as ImovelFormData['tipo'])}
+            opcoes={[{ v: 'locacao', t: 'Aluguel' }, { v: 'venda', t: 'Venda' }]} />
+        </div>
+        <div className="space-y-2">
+          <Label id="lbl-uso">Uso</Label>
+          <Escolha aria-labelledby="lbl-uso" valor={formData.uso} onChange={(v) => set('uso', v as ImovelFormData['uso'])}
+            opcoes={[{ v: 'residencial', t: 'Residencial' }, { v: 'comercial', t: 'Comercial' }]} />
+        </div>
       </div>
 
       {isEditing && (
@@ -303,23 +357,66 @@ export const ImovelFormFields = ({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="valor_aluguel">Valor Aluguel (R$)</Label>
-        <Input id="valor_aluguel" type="number" step="0.01" min="0" value={formData.valor_aluguel} onChange={(e) => set('valor_aluguel', e.target.value)} />
-      </div>
+      {formData.tipo === 'venda' ? (
+        <div className="space-y-2">
+          <Label htmlFor="valor_venda">Valor de venda (R$)</Label>
+          <Input id="valor_venda" type="number" step="0.01" min="0" value={formData.valor_venda} onChange={(e) => set('valor_venda', e.target.value)} />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Label htmlFor="valor_aluguel">Valor do aluguel (R$ por mês)</Label>
+          <Input id="valor_aluguel" type="number" step="0.01" min="0" value={formData.valor_aluguel} onChange={(e) => set('valor_aluguel', e.target.value)} />
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="descricao">Descrição</Label>
         <Textarea id="descricao" rows={3} maxLength={5000} value={formData.descricao} onChange={(e) => set('descricao', e.target.value)} />
       </div>
 
+      {parecidos.length > 0 && (
+        <div role="status" className={cn('rounded-lg border p-3 text-sm',
+          parecidos.some((x) => x.motivo !== 'endereco')
+            ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100'
+            : 'bg-muted/40')}>
+          <p className="flex items-center gap-2 font-semibold">
+            <Copy className="h-4 w-4 shrink-0" />
+            {parecidos.some((x) => x.motivo !== 'endereco') ? 'Esse imóvel pode já estar cadastrado' : 'Já tem imóvel cadastrado nesse endereço'}
+          </p>
+          <ul className="mt-1.5 space-y-1 text-xs">
+            {parecidos.map((x) => (
+              <li key={x.id}>
+                <b>{x.codigo}</b> · {x.titulo}
+                <span className="opacity-80"> — {x.motivo === 'legenda' ? `legenda ${x.semelhanca}% igual` : x.motivo === 'endereco_valor' ? 'mesmo endereço e mesmo valor' : 'mesmo endereço, valor diferente (pode ser outra unidade)'}</span>
+                {x.status && x.status !== 'disponivel' ? <span className="opacity-80"> · {x.status}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label>Fotos do Imóvel</Label>
-        <label htmlFor="photo-upload" className="block cursor-pointer">
-          <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
+        <label
+          htmlFor="photo-upload" className="block cursor-pointer"
+          onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setArrastandoArquivo(true); } }}
+          onDragLeave={() => setArrastandoArquivo(false)}
+          onDrop={(e) => {
+            if (!e.dataTransfer.files?.length) return;
+            e.preventDefault(); setArrastandoArquivo(false);
+            if (uploadingPhotos) return;
+            const arquivos = Array.from(e.dataTransfer.files).filter((f) => /^image\/(png|jpe?g|webp)$/.test(f.type));
+            if (arquivos.length === 0) { toast.error('Solte fotos PNG, JPG ou WEBP'); return; }
+            void receberArquivos(arquivos);
+          }}
+        >
+          <div className={cn('border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors',
+            arrastandoArquivo && 'border-primary bg-primary/5')}>
             <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">{uploadingPhotos ? 'Enviando fotos...' : 'Clique para adicionar fotos (PNG, JPG, WEBP)'}</p>
-            <p className="text-xs text-muted-foreground mt-1">Mínimo 10 fotos recomendado</p>
+            <p className="text-sm text-muted-foreground">
+              {uploadingPhotos ? 'Enviando fotos...' : arrastandoArquivo ? 'Solte as fotos aqui' : 'Clique ou arraste as fotos para cá (PNG, JPG, WEBP)'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">As fotos entram na ordem em que você escolher. Depois é só arrastar para mudar.</p>
           </div>
           <input id="photo-upload" type="file" multiple accept="image/png,image/jpeg,image/webp" onChange={handlePhotoUpload} className="hidden" disabled={uploadingPhotos} />
         </label>
@@ -345,21 +442,12 @@ export const ImovelFormFields = ({
         )}
 
         {photos.length > 0 && (
-          <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 gap-4">
-            {photos.map((photo, i) => (
-              <div key={`${photo}-${i}`} className="relative group">
-                <img src={photo} alt={`Foto ${i + 1}`} loading="lazy" className="w-full h-24 object-cover rounded-lg" />
-                <button
-                  type="button"
-                  onClick={() => setPhotos(photos.filter((_, idx) => idx !== i))}
-                  className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 sm:opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Remover foto"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
+          <>
+            <FotosOrdenaveis fotos={photos} onChange={setPhotos} />
+            <p className="text-xs text-muted-foreground">
+              Arraste as fotos para mudar a ordem (no celular, segure a foto um instante e arraste). A primeira é a capa no site.
+            </p>
+          </>
         )}
       </div>
     </div>

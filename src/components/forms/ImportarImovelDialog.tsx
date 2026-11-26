@@ -38,6 +38,8 @@ function paraFormulario(d: any): ImovelFormData {
     codigo: codigoNovo(),
     titulo: s(d.titulo).slice(0, 300),
     tipo: d.tipo === 'locacao' ? 'locacao' : 'venda',
+    // anúncio de galpão, salão, loja, sala... entra como comercial (dá para trocar antes de salvar)
+    uso: /comercial|galp[aã]o|sal[aã]o|loja|escrit[oó]rio|consult[oó]rio|ponto comercial/i.test(`${s(d.tipo_imovel)} ${s(d.titulo)}`) ? 'comercial' : 'residencial',
     endereco: s(d.endereco), numero: s(d.numero), bairro: s(d.bairro), cidade: s(d.cidade), estado: s(d.estado).slice(0, 2), cep: s(d.cep),
     quartos: s(d.quartos), banheiros: s(d.banheiros), vagas: s(d.vagas),
     aceita_pets: d.aceita_pets === true, mobiliado: d.mobiliado === true,

@@ -5,6 +5,7 @@ export interface SiteImovel {
   codigo: string;
   titulo: string;
   tipo: 'venda' | 'locacao';
+  uso?: 'residencial' | 'comercial';
   bairro: string | null;
   cidade: string | null;
   estado: string | null;
