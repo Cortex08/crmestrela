@@ -69,7 +69,7 @@ export function Sidebar({ className, children }: { className?: string; children:
           <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
           <DialogPrimitive.Content
             aria-describedby={undefined}
-            className="fixed inset-y-0 left-0 z-50 h-full w-72 border-r border-white/60 bg-sidebar/80 text-sidebar-foreground shadow-xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left duration-300"
+            className="fixed inset-y-0 left-0 z-50 h-full w-72 border-r border-border bg-sidebar text-sidebar-foreground shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left duration-300"
           >
             <DialogPrimitive.Title className="sr-only">Menu</DialogPrimitive.Title>
             <div className="flex h-full flex-col overflow-y-auto">{children}</div>
@@ -83,7 +83,7 @@ export function Sidebar({ className, children }: { className?: string; children:
     <aside
       data-state={state}
       className={cn(
-        'sticky top-0 hidden h-screen shrink-0 flex-col border-r border-white/60 bg-sidebar/60 text-sidebar-foreground backdrop-blur-2xl transition-[width] duration-200 md:flex',
+        'sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex',
         state === 'collapsed' ? 'w-14' : 'w-64',
         className,
       )}

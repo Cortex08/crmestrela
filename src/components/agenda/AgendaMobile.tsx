@@ -40,7 +40,7 @@ function Cartao({ e, onClick, mostrarDia }: { e: any; onClick: () => void; mostr
   return (
     <div
       role="button" tabIndex={0} onClick={onClick} onKeyDown={(ev) => { if (ev.key === 'Enter') onClick(); }}
-      className={cn('rounded-2xl border border-l-4 bg-card/80 backdrop-blur-xl p-3.5 shadow-sm active:scale-[0.99] transition-transform', tipoBorder[e.tipo] || tipoBorder.outro, atrasado && 'bg-red-50/80', isDone(e) && 'opacity-60')}
+      className={cn('rounded-2xl border border-l-4 bg-card p-3.5 shadow-sm active:scale-[0.99] transition-transform', tipoBorder[e.tipo] || tipoBorder.outro, atrasado && 'bg-red-50/80', isDone(e) && 'opacity-60')}
     >
       <div className="flex items-start gap-3">
         <div className="shrink-0 text-center leading-tight min-w-[52px]">
@@ -128,7 +128,7 @@ export function AgendaMobile({ events, pool, currentDate, setCurrentDate, onEven
       )}
 
       {/* subpáginas */}
-      <div className="sticky top-0 z-10 -mx-4 px-4 py-2 bg-background/70 backdrop-blur-xl">
+      <div className="sticky top-0 z-10 -mx-4 px-4 py-2 bg-background">
         <div className="grid grid-cols-3 gap-1 rounded-full bg-foreground/5 p-1">
           {abas.map(([k, l]) => (
             <button key={k} onClick={() => setSub(k)} aria-pressed={sub === k}
@@ -175,7 +175,7 @@ export function AgendaMobile({ events, pool, currentDate, setCurrentDate, onEven
               const n = porDia(d).length, sel = isSameDay(d, currentDate);
               return (
                 <button key={d.toISOString()} onClick={() => setCurrentDate(d)}
-                  className={cn('flex flex-col items-center rounded-2xl py-2 text-xs transition-colors', sel ? 'bg-primary text-primary-foreground shadow' : isToday(d) ? 'bg-primary/10 text-primary' : 'bg-card/70')}>
+                  className={cn('flex flex-col items-center rounded-2xl py-2 text-xs transition-colors', sel ? 'bg-primary text-primary-foreground shadow' : isToday(d) ? 'bg-primary/10 text-primary' : 'bg-card')}>
                   <span className="uppercase opacity-80">{format(d, 'EEEEE', { locale: ptBR })}</span>
                   <span className="text-base font-bold">{format(d, 'd')}</span>
                   <span className={cn('mt-0.5 h-1.5 w-1.5 rounded-full', n ? (sel ? 'bg-primary-foreground' : 'bg-primary') : 'bg-transparent')} />
@@ -192,7 +192,7 @@ export function AgendaMobile({ events, pool, currentDate, setCurrentDate, onEven
             <button className="font-bold capitalize" onClick={() => setCurrentDate(new Date())}>{format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })}</button>
             <Button variant="outline" size="icon" className="h-11 w-11" aria-label="Próximo mês" onClick={() => setCurrentDate(addMonths(currentDate, 1))}><ChevronRight className="h-5 w-5" /></Button>
           </div>
-          <div className="rounded-2xl border bg-card/70 backdrop-blur-xl p-2">
+          <div className="rounded-2xl border bg-card p-2">
             <div className="grid grid-cols-7 text-center text-[11px] text-muted-foreground pb-1">
               {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((l, i) => <span key={i}>{l}</span>)}
             </div>

@@ -33,7 +33,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
-          <header className="h-14 border-b border-white/60 bg-card/55 backdrop-blur-xl dark:border-white/10 flex items-center justify-between px-4 flex-shrink-0 z-10">
+          <header className="h-14 border-b border-border bg-card dark:border-white/10 flex items-center justify-between px-4 flex-shrink-0 z-10">
             <div className="flex items-center gap-2">
               <SidebarTrigger />
               <Button variant="outline" className="hidden sm:flex items-center gap-2 text-muted-foreground h-9 px-3" onClick={() => setSearchOpen(true)}>

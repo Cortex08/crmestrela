@@ -416,7 +416,7 @@ export const ImovelFormFields = ({
             <p className="text-sm text-muted-foreground">
               {uploadingPhotos ? 'Enviando fotos...' : arrastandoArquivo ? 'Solte as fotos aqui' : 'Clique ou arraste as fotos para cá (PNG, JPG, WEBP)'}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">As fotos entram na ordem em que você escolher. Depois é só arrastar para mudar.</p>
+            <p className="text-xs text-muted-foreground mt-1">Depois é só arrastar ou usar "Ordenar" para mudar a ordem.</p>
           </div>
           <input id="photo-upload" type="file" multiple accept="image/png,image/jpeg,image/webp" onChange={handlePhotoUpload} className="hidden" disabled={uploadingPhotos} />
         </label>
@@ -442,12 +442,7 @@ export const ImovelFormFields = ({
         )}
 
         {photos.length > 0 && (
-          <>
-            <FotosOrdenaveis fotos={photos} onChange={setPhotos} />
-            <p className="text-xs text-muted-foreground">
-              Arraste as fotos para mudar a ordem (no celular, segure a foto um instante e arraste). A primeira é a capa no site.
-            </p>
-          </>
+          <FotosOrdenaveis fotos={photos} onChange={setPhotos} />
         )}
       </div>
     </div>
