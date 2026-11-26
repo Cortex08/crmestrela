@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -33,8 +33,20 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const isAdmin = roles.includes('admin');
 
+  // A tela de "carregando" só aparece na primeira vez. Atualizações depois disso (por exemplo, quando
+  // o login é renovado ao voltar para a aba) acontecem por baixo, sem desmontar a página aberta.
+  const carregouUmaVez = useRef(false);
+  const userId = user?.id ?? null;
+  const rolesKey = roles.slice().sort().join(',');
+  // outra pessoa entrou (ou mudaram os papéis dela): carrega do zero, com a tela de "carregando"
+  const chaveAtual = useRef('');
+  if (chaveAtual.current !== `${userId}|${rolesKey}`) {
+    chaveAtual.current = `${userId}|${rolesKey}`;
+    carregouUmaVez.current = false;
+  }
+
   const fetchPermissions = useCallback(async () => {
-    if (!user || roles.length === 0) {
+    if (!userId || roles.length === 0) {
       setPermissions([]);
       setLoading(false);
       return;
@@ -44,7 +56,7 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!carregouUmaVez.current) setLoading(true);
     const { data, error } = await supabase
       .from('role_permissions')
       .select('module, can_create, can_read, can_update, can_delete')
@@ -68,9 +80,12 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
         );
       });
     }
-    setPermissions(Array.from(merged.values()));
+    // se a consulta falhar numa atualização, mantém as permissões que já estavam valendo
+    if (!error || !carregouUmaVez.current) setPermissions(Array.from(merged.values()));
+    carregouUmaVez.current = true;
     setLoading(false);
-  }, [user, roles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, rolesKey]);
 
   useEffect(() => {
     if (!authLoading) fetchPermissions();

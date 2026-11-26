@@ -84,7 +84,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (event === 'INITIAL_SESSION') return;
       setSession(newSession);
-      setUser(newSession?.user ?? null);
+      // Ao voltar para a aba, o Supabase confirma/renova o login e avisa de novo ("SIGNED_IN",
+      // "TOKEN_REFRESHED"). Se for a mesma pessoa, mantemos o mesmo objeto: trocar o usuário fazia
+      // o sistema recarregar as permissões e desmontar a página (fechando o que estava aberto).
+      const novo = newSession?.user ?? null;
+      setUser((atual) => (atual && novo && atual.id === novo.id ? atual : novo));
       if (event === 'SIGNED_OUT') {
         setProfile(null);
         setRoles([]);

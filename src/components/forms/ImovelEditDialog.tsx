@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { ImovelFormFields, ImovelFormData, initialFormData, checkMissingImovelFields, imovelPayload } from './ImovelFormFields';
+import { AvisoRascunho } from './AvisoRascunho';
+import { apagarRascunho, lerRascunho, useSalvarRascunho } from '@/hooks/useRascunhoImovel';
 
 interface Props {
   property: any | null;
@@ -23,10 +25,13 @@ export const ImovelEditDialog = ({ property, open, onOpenChange, onSuccess, rasc
   const [formData, setFormData] = useState<ImovelFormData>(initialFormData);
   const [photos, setPhotos] = useState<string[]>([]);
   const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [base, setBase] = useState<{ formData: ImovelFormData; photos: string[] } | null>(null);
+  const [recuperadoEm, setRecuperadoEm] = useState<number | null>(null);
+  const chave = property?.id ? `editar:${property.id}` : null;
 
   useEffect(() => {
     if (!property) return;
-    setFormData({
+    const doBanco: ImovelFormData = {
       codigo: str(property.codigo), titulo: str(property.titulo), tipo: property.tipo || 'locacao', uso: property.uso === 'comercial' ? 'comercial' : 'residencial', status: property.status || 'disponivel',
       endereco: str(property.endereco), numero: str(property.numero), complemento: str(property.complemento),
       bairro: str(property.bairro), cidade: str(property.cidade), estado: str(property.estado), cep: str(property.cep),
@@ -35,10 +40,35 @@ export const ImovelEditDialog = ({ property, open, onOpenChange, onSuccess, rasc
       area_util: str(property.area_util), area_total: str(property.area_total),
       valor_venda: str(property.valor_venda), valor_aluguel: str(property.valor_aluguel),
       valor_condominio: str(property.valor_condominio), valor_iptu: str(property.valor_iptu), descricao: str(property.descricao),
-    });
-    setPhotos(property.fotos || []);
+    };
+    const fotosDoBanco: string[] = property.fotos || [];
+    setBase({ formData: doBanco, photos: fotosDoBanco });
+    // alterações que não chegaram a ser salvas voltam ao reabrir este imóvel
+    const r = lerRascunho(`editar:${property.id}`);
+    if (r) {
+      setFormData({ ...doBanco, ...r.formData });
+      setPhotos(r.photos || fotosDoBanco);
+      setRecuperadoEm(r.salvoEm);
+    } else {
+      setFormData(doBanco);
+      setPhotos(fotosDoBanco);
+      setRecuperadoEm(null);
+    }
     setMissingFields([]);
-  }, [property]);
+    // reabrir a mesma janela também relê o rascunho
+  }, [property, open]);
+
+  const alterado = useMemo(
+    () => !!base && (JSON.stringify(formData) !== JSON.stringify(base.formData) || JSON.stringify(photos) !== JSON.stringify(base.photos)),
+    [base, formData, photos],
+  );
+  const gravarRascunho = useSalvarRascunho(chave, open, alterado, formData, photos);
+  const fechar = (o: boolean) => { if (!o) gravarRascunho(); onOpenChange(o); };
+  const descartar = () => {
+    if (chave) apagarRascunho(chave);
+    if (base) { setFormData(base.formData); setPhotos(base.photos); }
+    setRecuperadoEm(null);
+  };
 
   /** parcial = salva o que já foi preenchido e mantém o imóvel em "Aguardando Dados" */
   const salvar = async (parcial: boolean) => {
@@ -63,6 +93,7 @@ export const ImovelEditDialog = ({ property, open, onOpenChange, onSuccess, rasc
       toast.error(friendlyError(error, 'Erro ao atualizar imóvel'));
       return;
     }
+    if (chave) apagarRascunho(chave);
     toast.success(rascunho ? (parcial ? 'Dados salvos! Você pode continuar depois.' : 'Imóvel concluído!') : 'Imóvel atualizado com sucesso!');
     onOpenChange(false);
     onSuccess?.();
@@ -71,12 +102,15 @@ export const ImovelEditDialog = ({ property, open, onOpenChange, onSuccess, rasc
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); salvar(rascunho ? true : false); };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={fechar}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{rascunho ? 'Completar dados do imóvel' : 'Editar Imóvel'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {recuperadoEm && (
+            <AvisoRascunho salvoEm={recuperadoEm} texto="Recuperamos alterações que não tinham sido salvas." onDescartar={descartar} />
+          )}
           <ImovelFormFields
             imovelId={property?.id ?? null}
             formData={formData}
@@ -89,7 +123,7 @@ export const ImovelEditDialog = ({ property, open, onOpenChange, onSuccess, rasc
             missingFields={missingFields}
           />
           <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{rascunho ? 'Fechar' : 'Cancelar'}</Button>
+            <Button type="button" variant="outline" onClick={() => fechar(false)}>{rascunho ? 'Fechar' : 'Cancelar'}</Button>
             {rascunho ? (
               <>
                 <Button type="button" variant="secondary" disabled={loading || uploadingPhotos} onClick={() => salvar(true)}>{loading ? 'Salvando...' : 'Salvar e continuar depois'}</Button>
