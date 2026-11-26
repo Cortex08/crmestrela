@@ -159,6 +159,8 @@ export const NovoLeadDialog = ({ open, onOpenChange, lead = null }: Props) => {
     setSalvando(false);
     if (error) return toast.error(friendlyError(error, 'Não foi possível salvar o lead'));
     qc.invalidateQueries({ queryKey: ['deals'] });
+    qc.invalidateQueries({ queryKey: ['deal-detalhe'] });
+    qc.invalidateQueries({ queryKey: ['deal-detalhe-visitas'] });
     qc.invalidateQueries({ queryKey: ['calendar_events'] });
     qc.invalidateQueries({ queryKey: ['clients'] });
     qc.invalidateQueries({ queryKey: ['opt', 'clients'] });

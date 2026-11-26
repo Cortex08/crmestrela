@@ -4,15 +4,16 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, DollarSign, GripVertical, MoreVertical, Edit, Trash2, UserPlus, CalendarPlus } from 'lucide-react';
+import { MessageSquare, DollarSign, GripVertical, MoreVertical, Edit, Trash2, UserPlus, CalendarPlus, Eye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { openWhatsapp, hasValidWhatsapp } from '@/lib/whatsapp';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { DealForm, ETAPAS } from '@/components/forms/DealForm';
 import { NovoLeadDialog, LeadExistente } from '@/components/forms/NovoLeadDialog';
+import { LeadDetalhesDialog } from '@/components/funil/LeadDetalhesDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { formatCurrency, friendlyError } from '@/lib/utils';
 import {
   DndContext, DragOverlay, closestCorners, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors,
@@ -36,31 +37,46 @@ interface Deal {
 const SEM_VISITA = ['novo_lead', 'qualificando'];
 const procuraDe = (d: Deal) => d.cliente?.interesse || (d.observacoes?.startsWith('Procura:') ? d.observacoes.replace(/^Procura:\s*/, '') : null);
 
-const DealCard = ({ deal, onEdit, onDelete, onVisita, canUpdate, canDelete }: { deal: Deal; onEdit: () => void; onDelete: () => void; onVisita: () => void; canUpdate: boolean; canDelete: boolean }) => {
+const DealCard = ({ deal, onEdit, onDelete, onVisita, onAbrir, onMover, canUpdate, canDelete }: {
+  deal: Deal; onEdit: () => void; onDelete: () => void; onVisita: () => void; onAbrir: () => void; onMover: (etapa: string) => void; canUpdate: boolean; canDelete: boolean;
+}) => {
   const procura = procuraDe(deal);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: deal.id, data: { etapa: deal.etapa }, disabled: !canUpdate });
   return (
-    <Card ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }} className="card-premium hover:shadow-lg transition-all">
+    <Card ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }} className="card-premium hover:shadow-lg transition-all cursor-pointer" onClick={onAbrir}
+      role="button" tabIndex={0} aria-label={`Ver dados de ${deal.cliente?.nome || deal.titulo}`}
+      onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onAbrir(); }}>
       <CardHeader className="pb-2 flex flex-row items-start justify-between space-y-0 p-4">
         <div className="flex items-center gap-2 min-w-0">
           {canUpdate && (
-            <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 -ml-1 hover:bg-muted rounded touch-none" aria-label="Arrastar">
+            <div {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="cursor-grab active:cursor-grabbing p-1 -ml-1 hover:bg-muted rounded touch-none" aria-label="Arrastar">
               <GripVertical className="h-4 w-4 text-muted-foreground" />
             </div>
           )}
           <CardTitle className="text-sm font-medium truncate">{deal.titulo}</CardTitle>
         </div>
-        {(canUpdate || canDelete) && (
-          <DropdownMenu>
+        <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6"><MoreVertical className="h-3 w-3" /></Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6" aria-label="Opções" onClick={(e) => e.stopPropagation()}><MoreVertical className="h-3 w-3" /></Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onClick={onAbrir}><Eye className="h-3 w-3 mr-2" />Ver dados</DropdownMenuItem>
               {canUpdate && <DropdownMenuItem onClick={onEdit}><Edit className="h-3 w-3 mr-2" />Editar</DropdownMenuItem>}
+              {canUpdate && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Mover para</DropdownMenuLabel>
+                  {ETAPAS.filter((e) => e.value !== deal.etapa).map((e) => (
+                    <DropdownMenuItem key={e.value} onClick={() => onMover(e.value)}>
+                      <span className={`h-2 w-2 rounded-full mr-2 ${e.cor}`} />{e.label}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                </>
+              )}
               {canDelete && <DropdownMenuItem onClick={onDelete} className="text-destructive"><Trash2 className="h-3 w-3 mr-2" />Excluir</DropdownMenuItem>}
             </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        </DropdownMenu>
       </CardHeader>
       <CardContent className="space-y-2 p-4 pt-0">
         <p className="text-xs text-muted-foreground"><strong>Cliente:</strong> {deal.cliente?.nome || 'N/A'}</p>
@@ -85,8 +101,9 @@ const DealCard = ({ deal, onEdit, onDelete, onVisita, canUpdate, canDelete }: { 
   );
 };
 
-const Column = ({ etapa, deals, onEdit, onDelete, onVisita, canUpdate, canDelete }: {
-  etapa: (typeof ETAPAS)[number]; deals: Deal[]; onEdit: (d: Deal) => void; onDelete: (d: Deal) => void; onVisita: (d: Deal) => void; canUpdate: boolean; canDelete: boolean;
+const Column = ({ etapa, deals, onEdit, onDelete, onVisita, onAbrir, onMover, canUpdate, canDelete }: {
+  etapa: (typeof ETAPAS)[number]; deals: Deal[]; onEdit: (d: Deal) => void; onDelete: (d: Deal) => void; onVisita: (d: Deal) => void;
+  onAbrir: (d: Deal) => void; onMover: (d: Deal, etapa: string) => void; canUpdate: boolean; canDelete: boolean;
 }) => {
   // A coluna inteira recebe cards, inclusive quando está vazia (no original não recebia)
   const { setNodeRef, isOver } = useDroppable({ id: `col-${etapa.value}`, data: { etapa: etapa.value } });
@@ -106,7 +123,7 @@ const Column = ({ etapa, deals, onEdit, onDelete, onVisita, canUpdate, canDelete
           {deals.length === 0 ? (
             <div className="flex items-center justify-center h-[100px] text-xs text-muted-foreground">{canUpdate ? 'Arraste cards aqui' : 'Sem negociações'}</div>
           ) : (
-            deals.map((d) => <DealCard key={d.id} deal={d} onEdit={() => onEdit(d)} onDelete={() => onDelete(d)} onVisita={() => onVisita(d)} canUpdate={canUpdate} canDelete={canDelete} />)
+            deals.map((d) => <DealCard key={d.id} deal={d} onEdit={() => onEdit(d)} onDelete={() => onDelete(d)} onVisita={() => onVisita(d)} onAbrir={() => onAbrir(d)} onMover={(e) => onMover(d, e)} canUpdate={canUpdate} canDelete={canDelete} />)
           )}
         </div>
       </SortableContext>
@@ -122,6 +139,7 @@ const Funil = () => {
   const [toDelete, setToDelete] = useState<Deal | null>(null);
   const [novoLead, setNovoLead] = useState(false);
   const [visitaPara, setVisitaPara] = useState<LeadExistente | null>(null);
+  const [detalheId, setDetalheId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -148,16 +166,21 @@ const Funil = () => {
     if (!over || !canUpdate('funil')) return;
     const deal = deals.find((d) => d.id === active.id);
     const target = (over.data.current as any)?.etapa as string | undefined;
-    if (!deal || !target || target === deal.etapa) return;
+    if (!deal || !target) return;
+    await moverPara(deal, target);
+  };
 
+  const moverPara = async (deal: Deal, target: string) => {
+    if (!canUpdate('funil') || target === deal.etapa) return;
     // Atualiza a tela na hora e desfaz se o banco recusar
     queryClient.setQueryData<Deal[]>(['deals'], (old = []) => old.map((d) => (d.id === deal.id ? { ...d, etapa: target } : d)));
-    const { error } = await supabase.from('deals').update({ etapa: target, ultima_interacao: new Date().toISOString() }).eq('id', deal.id);
+    const { error } = await supabase.from('deals').update({ etapa: target, ultima_interacao: new Date().toISOString(), motivo_perda: null }).eq('id', deal.id);
     if (error) {
       toast.error(friendlyError(error, 'Erro ao mover negociação'));
       refresh();
     } else {
       toast.success(`Movido para ${ETAPAS.find((e) => e.value === target)?.label}`);
+      queryClient.invalidateQueries({ queryKey: ['deal-detalhe', deal.id] });
     }
   };
 
@@ -203,6 +226,9 @@ const Funil = () => {
                   deals={deals.filter((d) => d.etapa === etapa.value)}
                   onEdit={(d) => setEditingId(d.id)}
                   onDelete={setToDelete}
+                  onAbrir={(d) => setDetalheId(d.id)}
+                  // "Perdido" pede o motivo: abre a ficha, onde isso é perguntado
+                  onMover={(d, e) => (e === 'fechado_perdido' ? setDetalheId(d.id) : moverPara(d, e))}
                   onVisita={(d) => setVisitaPara({ dealId: d.id, nome: d.cliente?.nome || d.titulo, whatsapp: d.cliente?.whatsapp, procura: procuraDe(d) })}
                   canUpdate={canUpdate('funil')}
                   canDelete={canDelete('funil')}
@@ -240,6 +266,13 @@ const Funil = () => {
       />
       <NovoLeadDialog open={novoLead} onOpenChange={setNovoLead} />
       <NovoLeadDialog open={!!visitaPara} onOpenChange={(o) => { if (!o) setVisitaPara(null); }} lead={visitaPara} />
+      <LeadDetalhesDialog
+        dealId={detalheId}
+        onOpenChange={(o) => { if (!o) setDetalheId(null); }}
+        canUpdate={canUpdate('funil')}
+        onMarcarVisita={(l) => { setDetalheId(null); setVisitaPara(l); }}
+        onEditar={(id) => { setDetalheId(null); setEditingId(id); }}
+      />
     </DashboardLayout>
   );
 };
