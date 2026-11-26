@@ -4,12 +4,13 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, DollarSign, GripVertical, MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { MessageSquare, DollarSign, GripVertical, MoreVertical, Edit, Trash2, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { openWhatsapp, hasValidWhatsapp } from '@/lib/whatsapp';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { DealForm, ETAPAS } from '@/components/forms/DealForm';
+import { NovoLeadDialog } from '@/components/forms/NovoLeadDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { formatCurrency, friendlyError } from '@/lib/utils';
@@ -107,6 +108,7 @@ const Funil = () => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<Deal | null>(null);
+  const [novoLead, setNovoLead] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -168,7 +170,12 @@ const Funil = () => {
             <h1 className="text-3xl font-bold">Funil de Vendas</h1>
             <p className="text-muted-foreground">Arraste os cards entre as etapas • {deals.length} negociações</p>
           </div>
-          {canCreate('funil') && <DealForm onSuccess={refresh} />}
+          {canCreate('funil') && (
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => setNovoLead(true)}><UserPlus className="h-4 w-4 mr-2" />Novo lead</Button>
+              <DealForm onSuccess={refresh} />
+            </div>
+          )}
         </div>
 
         {isLoading ? (
@@ -217,6 +224,7 @@ const Funil = () => {
         description={`Tem certeza que deseja excluir "${toDelete?.titulo}"? Esta ação não pode ser desfeita.`}
         confirmText="Excluir"
       />
+      <NovoLeadDialog open={novoLead} onOpenChange={setNovoLead} />
     </DashboardLayout>
   );
 };
